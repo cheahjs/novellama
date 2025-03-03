@@ -10,58 +10,60 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import './styles/App.css';
 
 function App() {
-  const [sessionId] = useState('default'); // In a real app, generate or use from auth
-  const [translations, setTranslations] = useState([]);
-  const [systemPrompt, setSystemPrompt] = useState(
-    'You are a professional translator. Translate the given text accurately while maintaining the original meaning, tone, and style. Preserve formatting, paragraph breaks, and special characters when possible.'
-  );
+  const [systemPrompt, setSystemPrompt] = useState('');
   const [references, setReferences] = useState([]);
+  const [translations, setTranslations] = useState([]);
+  const [error, setError] = useState(null);
   
   const {
     translateText,
+    loadSession,
+    saveSession,  // Add this back
     updateSystemPrompt,
     updateReferences,
-    getTranslationContext,
-    getSettings,
     isLoading,
-    error,
+    error: apiError,
     settings
-  } = useTranslationAPI(sessionId);
+  } = useTranslationAPI();
 
   useEffect(() => {
-    // Load settings
-    getSettings();
-    
-    // Load existing translations
-    const loadTranslations = async () => {
-      const context = await getTranslationContext();
-      setTranslations(context);
+    // Load saved data on mount
+    const loadSavedData = async () => {
+      const data = await loadSession();
+      if (data) {
+        setSystemPrompt(data.systemPrompt);
+        setReferences(data.references);
+        setTranslations(data.translations);
+      }
     };
-    
-    loadTranslations();
-  }, [getTranslationContext, getSettings]);
+    loadSavedData();
+  }, []);
 
-  const handleTranslate = async (text) => {
-    const result = await translateText(text);
-    if (result) {
-      setTranslations(prev => [...prev, {
-        source: result.source,
-        translation: result.translation
-      }]);
-    }
-  };
+  useEffect(() => {
+    if (apiError) setError(apiError);
+  }, [apiError]);
 
-  const handleSystemPromptUpdate = async (prompt) => {
-    const success = await updateSystemPrompt(prompt);
-    if (success) {
-      setSystemPrompt(prompt);
-    }
+  const handleSystemPromptUpdate = async (newPrompt) => {
+    setSystemPrompt(newPrompt);
+    await updateSystemPrompt(newPrompt);
   };
 
   const handleReferencesUpdate = async (newReferences) => {
-    const success = await updateReferences(newReferences);
-    if (success) {
-      setReferences(newReferences);
+    setReferences(newReferences);
+    await updateReferences(newReferences);
+  };
+
+  const handleTranslate = async (text) => {
+    const translation = await translateText(text);
+    if (translation) {
+      const newTranslations = [...translations, { source: text, translation }];
+      setTranslations(newTranslations);
+      // Update both state and storage
+      await saveSession({
+        systemPrompt,
+        references,
+        translations: newTranslations
+      });
     }
   };
 

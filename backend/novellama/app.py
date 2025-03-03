@@ -4,28 +4,49 @@ import os
 from dotenv import load_dotenv
 from novellama.models.translation_context import TranslationContext
 from novellama.api.translation_api import TranslationAPI
+from .storage import StorageManager
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# Store context per session (in a real app, you'd use a database)
+storage = StorageManager()
 sessions = {}
 
+
+@app.route("/api/session/<session_id>", methods=["GET"])
+def get_session(session_id):
+    data = storage.load_session(session_id)
+    return jsonify(data)
+
+@app.route("/api/session/<session_id>", methods=["PUT"])
+def update_session(session_id):
+    data = request.json
+    storage.save_session(session_id, data)
+    return jsonify({"status": "success"})
 
 @app.route("/api/translate", methods=["POST"])
 def translate():
     data = request.json
+    source_text = data.get("text")
     session_id = data.get("sessionId", "default")
-    source_text = data.get("text", "")
-
+    
     if not source_text:
         return jsonify({"error": "No text provided"}), 400
 
     # Get or create session context
     if session_id not in sessions:
         sessions[session_id] = TranslationContext()
+        
+        # Load saved data
+        saved_data = storage.load_session(session_id)
+        if saved_data["systemPrompt"]:
+            sessions[session_id].set_system_prompt(saved_data["systemPrompt"])
+        for ref in saved_data["references"]:
+            sessions[session_id].add_reference(ref)
+        for trans in saved_data["translations"]:
+            sessions[session_id].add_translation(trans["source"], trans["translation"])
 
     context = sessions[session_id]
 
@@ -35,13 +56,18 @@ def translate():
     messages.append({"role": "user", "content": source_text})
 
     try:
-        translated_text = api.translate_text(messages)
-
-        # Update context with the new translation
-        context.add_translation(source_text, translated_text)
-
-        return jsonify({"translation": translated_text, "source": source_text})
-
+        translation = api.translate_text(messages)
+        context.add_translation(source_text, translation)
+        
+        # Save updated translations
+        saved_data = storage.load_session(session_id)
+        saved_data["translations"].append({
+            "source": source_text,
+            "translation": translation
+        })
+        storage.save_session(session_id, saved_data)
+        
+        return jsonify({"translation": translation})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -55,7 +81,14 @@ def update_system_prompt():
     if session_id not in sessions:
         sessions[session_id] = TranslationContext()
 
+    # Update context
     sessions[session_id].set_system_prompt(prompt)
+    
+    # Update storage
+    saved_data = storage.load_session(session_id)
+    saved_data["systemPrompt"] = prompt
+    storage.save_session(session_id, saved_data)
+    
     return jsonify({"success": True})
 
 
@@ -68,9 +101,15 @@ def update_references():
     if session_id not in sessions:
         sessions[session_id] = TranslationContext()
 
+    # Update context
     sessions[session_id].clear_references()
     for reference in references:
         sessions[session_id].add_reference(reference)
+
+    # Update storage
+    saved_data = storage.load_session(session_id)
+    saved_data["references"] = references
+    storage.save_session(session_id, saved_data)
 
     return jsonify({"success": True})
 
@@ -96,7 +135,7 @@ def get_settings():
     )
 
 def main():
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)
 
 if __name__ == "__main__":
     main()
