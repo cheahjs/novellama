@@ -33,25 +33,62 @@ export async function truncateContext<T>(
 ): Promise<T[]> {
   if (chunks.length === 0) return [];
   
+  // First, apply the maxChunks limit if specified
   if (maxChunks && chunks.length > maxChunks) {
     return chunks.slice(chunks.length - maxChunks);
   }
   
-  let totalTokens = 0;
-  let startIdx = 0;
+  const enc = await initTokenizer();
+  if (!enc) return chunks; // If no encoder is available, return all chunks
   
-  // Start from the most recent and go backwards
-  for (let i = chunks.length - 1; i >= 0; i--) {
-    const chunk = chunks[i];
-    const chunkTokens = await countTokens(JSON.stringify(chunk));
+  // Check if chunks are chat messages with role and content
+  const isChatMessages = chunks.length > 0 && 
+    typeof chunks[0] === 'object' && 
+    chunks[0] !== null &&
+    'role' in chunks[0] && 
+    'content' in chunks[0];
+  
+  // If these are chat messages, use apply_chat_template for accurate counting
+  if (isChatMessages) {
+    // Cast to proper message format for apply_chat_template
+    const messages = chunks as unknown as Array<{role: string, content: string}>;
     
-    if (totalTokens + chunkTokens > maxTokens) {
-      startIdx = i + 1;
-      break;
+    // Start from the most recent and go backwards
+    let startIdx = 0;
+    for (let i = chunks.length; i > 0; i--) {
+      const contextChunks = messages.slice(chunks.length - i);
+      
+      // Use apply_chat_template for accurate token counting
+      const tokenCount = enc.apply_chat_template(contextChunks, { 
+        tokenize: true,
+        return_tensor: false 
+      }).length;
+      
+      if (tokenCount <= maxTokens) {
+        startIdx = chunks.length - i;
+        break;
+      }
     }
     
-    totalTokens += chunkTokens;
+    return chunks.slice(startIdx);
+  } else {
+    // Original approach for non-chat messages
+    let totalTokens = 0;
+    let startIdx = 0;
+    
+    // Start from the most recent and go backwards
+    for (let i = chunks.length - 1; i >= 0; i--) {
+      const chunk = chunks[i];
+      const chunkTokens = await countTokens(JSON.stringify(chunk));
+      
+      if (totalTokens + chunkTokens > maxTokens) {
+        startIdx = i + 1;
+        break;
+      }
+      
+      totalTokens += chunkTokens;
+    }
+    
+    return chunks.slice(startIdx);
   }
-  
-  return chunks.slice(startIdx);
 }
