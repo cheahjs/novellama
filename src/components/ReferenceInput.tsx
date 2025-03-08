@@ -99,7 +99,7 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
               className="w-full p-2 border rounded"
             />
             <div className="absolute top-2 right-2">
-              <LiveTokenCounter text={content} className="bg-gray-100 px-2 py-1 rounded" />
+              <LiveTokenCounter text={content} className="bg-gray-800 px-2 py-1 rounded" />
             </div>
           </div>
         </>

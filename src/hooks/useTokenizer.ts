@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from "react";
 
 interface TokenizerState {
   isLoading: boolean;
@@ -8,16 +8,27 @@ interface TokenizerState {
 
 let workerInstance: Worker | undefined;
 let nextId = 1;
-const pendingRequests = new Map<number, (result: any) => void>();
+
+interface WorkerResult {
+  error?: string;
+  success?: boolean;
+  count?: number;
+}
+
+const pendingRequests = new Map<number, (result: WorkerResult) => void>();
+let isWorkerInitialized = false;
+let initializationPromise: Promise<void> | null = null;
+let isInitializing = false;
 
 // Get the model name from environment variables
-const TOKENIZER_MODEL = process.env.NEXT_PUBLIC_TOKENIZER_MODEL || 'Xenova/gpt-4o';
+const TOKENIZER_MODEL =
+  process.env.NEXT_PUBLIC_TOKENIZER_MODEL || "Xenova/gpt-4o";
 
 // Debounce helper function
 const debounce = <T extends (...args: any[]) => void>(
   func: T,
   wait: number
-): (...args: Parameters<T>) => void => {
+): ((...args: Parameters<T>) => void) => {
   let timeout: NodeJS.Timeout | null = null;
 
   return (...args: Parameters<T>) => {
@@ -32,12 +43,12 @@ const debounce = <T extends (...args: any[]) => void>(
 };
 
 export function useTokenizer(
-  text: string, 
+  text: string,
   debounceMs: number = 500,
   modelName: string = TOKENIZER_MODEL
 ): TokenizerState {
   const [state, setState] = useState<TokenizerState>({
-    isLoading: true,
+    isLoading: !isWorkerInitialized && !isInitializing,
     error: null,
     count: null,
   });
@@ -47,15 +58,17 @@ export function useTokenizer(
 
   // Memoize the state update functions
   const handleError = useCallback((error: string) => {
-    setState(prev => ({ ...prev, isLoading: false, error, count: null }));
+    setState((prev) => ({ ...prev, isLoading: false, error, count: null }));
   }, []);
 
   const handleSuccess = useCallback((count: number) => {
-    setState(prev => ({ ...prev, isLoading: false, error: null, count }));
+    setState((prev) => ({ ...prev, isLoading: false, error: null, count }));
   }, []);
 
   const handleInitSuccess = useCallback(() => {
-    setState(prev => ({ ...prev, isLoading: false, error: null }));
+    isWorkerInitialized = true;
+    isInitializing = false;
+    setState((prev) => ({ ...prev, isLoading: false, error: null }));
   }, []);
 
   // Store the debounced function in a ref so it persists across renders
@@ -63,53 +76,73 @@ export function useTokenizer(
 
   useEffect(() => {
     // Initialize worker if it doesn't exist
-    if (!workerInstance) {
-      try {
-        workerInstance = new Worker(
-          new URL('../workers/tokenizer.worker.ts', import.meta.url),
-        );
+    if (!workerInstance && !isInitializing) {
+      if (!initializationPromise) {
+        isInitializing = true;
+        initializationPromise = new Promise<void>((resolve) => {
+          try {
+            workerInstance = new Worker(
+              new URL("../workers/tokenizer.worker.ts", import.meta.url)
+            );
 
-        workerInstance.onmessage = (event) => {
-          const { type, id, error, count, success } = event.data;
-          const resolver = pendingRequests.get(id);
-          if (!resolver) return;
+            workerInstance.onmessage = (event) => {
+              const { type, id, error, count, success } = event.data;
+              const resolver = pendingRequests.get(id);
+              if (!resolver) return;
 
-          pendingRequests.delete(id);
+              pendingRequests.delete(id);
 
-          if (error) {
-            resolver({ error });
-          } else if (type === 'init') {
-            resolver({ success });
-          } else if (type === 'count') {
-            resolver({ count });
+              if (error) {
+                resolver({ error });
+              } else if (type === "init") {
+                isWorkerInitialized = true;
+                resolver({ success });
+              } else if (type === "count") {
+                resolver({ count });
+              }
+            };
+
+            // Initialize the tokenizer
+            const id = nextId++;
+            const promise = new Promise<WorkerResult>((resolve) => {
+              pendingRequests.set(id, resolve);
+            });
+            workerInstance.postMessage({ type: "init", id, modelName });
+
+            promise.then((result: WorkerResult) => {
+              if (result.error) {
+                handleError(result.error);
+              } else {
+                handleInitSuccess();
+              }
+              resolve();
+            });
+          } catch (error) {
+            handleError(
+              error instanceof Error
+                ? error.message
+                : "Failed to initialize tokenizer"
+            );
+            resolve();
           }
-        };
-
-        // Initialize the tokenizer
-        const id = nextId++;
-        const promise = new Promise((resolve) => {
-          pendingRequests.set(id, resolve);
         });
-        workerInstance.postMessage({ type: 'init', id, modelName });
-        
-        promise.then((result: any) => {
-          if (result.error) {
-            handleError(result.error);
-          } else {
-            handleInitSuccess();
-          }
-        });
-      } catch (error) {
-        handleError(error instanceof Error ? error.message : 'Failed to initialize tokenizer');
       }
+
+      // Wait for initialization to complete
+      initializationPromise.then(() => {
+        debouncedCountRef.current?.(textRef.current);
+      });
+    } else if (isWorkerInitialized) {
+      debouncedCountRef.current?.(textRef.current);
+      handleInitSuccess();
     }
 
     return () => {
-      // Don't terminate the worker on unmount as it's shared
-      // Only terminate if the app is being torn down
-      if (document.visibilityState === 'hidden') {
+      if (document.visibilityState === "hidden") {
         workerInstance?.terminate();
-        workerInstance = null;
+        workerInstance = undefined;
+        isWorkerInitialized = false;
+        initializationPromise = null;
       }
     };
   }, [modelName, handleError, handleInitSuccess]);
@@ -121,23 +154,25 @@ export function useTokenizer(
 
       try {
         const id = nextId++;
-        const promise = new Promise((resolve) => {
+        const promise = new Promise<WorkerResult>((resolve) => {
           pendingRequests.set(id, resolve);
         });
 
-        workerInstance.postMessage({ type: 'count', id, text });
-        
-        const result: any = await promise;
+        workerInstance.postMessage({ type: "count", id, text });
+
+        const result = await promise;
         if (result.error) {
           handleError(result.error);
-        } else {
+        } else if (result.count !== undefined) {
           // Only update state if the text hasn't changed
           if (textRef.current === text) {
             handleSuccess(result.count);
           }
         }
       } catch (error) {
-        handleError(error instanceof Error ? error.message : 'Failed to count tokens');
+        handleError(
+          error instanceof Error ? error.message : "Failed to count tokens"
+        );
       }
     };
 
@@ -155,10 +190,10 @@ export function useTokenizer(
 
   // Call the debounced function when text changes
   useEffect(() => {
-    if (debouncedCountRef.current && text.trim()) {
+    if (debouncedCountRef.current) {
       debouncedCountRef.current(text);
     }
   }, [text]);
 
   return state;
-} 
+}

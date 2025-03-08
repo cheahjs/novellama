@@ -42,7 +42,7 @@ export async function countMessagesTokens(messages: { role: string; content: str
 
 export async function truncateContext(
   messages: { role: string; content: string}[],
-  maxTokens: number = 8000,
+  maxTokens: number = Number.parseInt(process.env.MAX_TOKENS ?? "16000"),
 ): Promise<{
   messages: { role: string; content: string}[],
   tokenCounts: {

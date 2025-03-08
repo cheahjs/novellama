@@ -17,16 +17,16 @@ const LiveTokenCounter: React.FC<LiveTokenCounterProps> = ({
   const { count, isLoading, error } = useTokenizer(text, debounceMs, modelName);
 
   if (error) {
-    return <div className={`text-red-500 ${className}`}>Error: {error}</div>;
-  }
-
-  if (isLoading) {
-    return <div className={`text-gray-500 ${className}`}>Loading...</div>;
+    return <div className={`text-red-500 ${className}`} title={error}>Error</div>;
   }
 
   return (
-    <div className={`text-sm ${className}`}>
-      {count !== null ? `${count.toLocaleString()}` : '...'}
+    <div className={`text-sm ${className} text-right`}>
+      {isLoading ? (
+        <span className="text-gray-400">...</span>
+      ) : (
+        count !== null ? `${count.toLocaleString()}` : '0'
+      )}
     </div>
   );
 };

@@ -36,10 +36,10 @@ export interface TranslationRequest {
 export interface TranslationResponse {
   translatedContent: string;
   tokenUsage?: {
-    total: number;
-    references: number;
-    context: number;
-    input: number;
-    output: number;
+    native_prompt: number;
+    native_completion: number;
+    system: number;
+    task: number;
+    translation: number;
   };
 }

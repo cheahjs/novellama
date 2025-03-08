@@ -130,7 +130,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
                 placeholder="Instructions for translation style and guidelines..."
               />
               <div className="absolute top-2 right-2">
-                <LiveTokenCounter text={formData.systemPrompt} className="bg-gray-100 px-2 py-1 rounded" />
+                <LiveTokenCounter text={formData.systemPrompt} className="bg-gray-800 px-2 py-1 rounded" />
               </div>
             </div>
           </div>

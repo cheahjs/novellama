@@ -11,14 +11,28 @@ export default async function handler(
 
   try {
     const { messages } = req.body;
+    const url = `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`;
+    console.log("url", url);
+    console.log("messages", messages);
+    console.log({
+      url,
+      body: {
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
+        messages,
+        temperature: 0.1,
+      },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+    })
 
-    // Replace with your actual OpenAI-compatible API endpoint
     const apiResponse = await axios.post(
-      `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`,
+      url,
       {
         model: process.env.OPENAI_MODEL || 'gpt-4o',
         messages,
-        temperature: 0.3,
+        temperature: 0.1,
       },
       {
         headers: {
@@ -30,8 +44,13 @@ export default async function handler(
 
     // Extract translation from the response
     const translation = apiResponse.data.choices[0].message.content;
+    // Extract token usage from the response
+    const tokenUsage = apiResponse.data.usage;
+    console.log("response", {
+      apiResponse,
+    })
     
-    return res.status(200).json({ translation });
+    return res.status(200).json({ translation, tokenUsage });
   } catch (error: any) {
     console.error('API error:', error.response?.data || error.message);
     return res.status(500).json({ 

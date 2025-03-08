@@ -74,7 +74,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             disabled={isLoading}
           />
           <div className="absolute top-2 right-2">
-            <LiveTokenCounter text={sourceContent} className="bg-gray-900 px-2 py-1 rounded" />
+            <LiveTokenCounter text={sourceContent} className="bg-gray-800 px-2 py-1 rounded" />
           </div>
         </div>
         <button

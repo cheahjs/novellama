@@ -1,21 +1,16 @@
 import axios from "axios";
 import { TranslationRequest, TranslationResponse } from "@/types";
 import { truncateContext } from "@/utils/tokenizer";
-import { processReferences } from "@/utils/referenceUtils";
-import { countTokens } from "@/utils/tokenizer";
 
 export const translateContent = async (
   request: TranslationRequest
 ): Promise<TranslationResponse> => {
   try {
-    // Process references to respect token limits
-    const processedReferences = await processReferences(request.references);
-
     // Format references with titles
     const referencesText =
-      processedReferences.length > 0
-        ? "Here are references to use to assist in translation:\n" +
-          processedReferences
+      request.references.length > 0
+        ? "Here are references to use to assist in translation. Use them to help with the translation, but don't mention them in the translation:\n" +
+          request.references
             .map(
               (ref) =>
                 `<ref src="${ref.title}">\n${ref.content}\n</ref src="${ref.title}">`
@@ -57,25 +52,25 @@ export const translateContent = async (
     const { messages: truncatedMessages, tokenCounts } = await truncateContext(
       messages
     );
+    console.log("Truncated messages", {
+      tokenCounts,
+      messages,
+      truncatedMessages,
+    });
 
     // Make API call to OpenAI-compatible endpoint
-    const response = await axios.post("/api/translate", { messages });
-
-    // Count output tokens
-    const outputTokens = await countTokens(response.data.translation);
-
-    // Calculate total token usage
-    const totalTokens =
-      referenceTokens + contextTokens + inputTokens + outputTokens;
+    const response = await axios.post("/api/translate", {
+      messages: truncatedMessages,
+    });
 
     return {
       translatedContent: response.data.translation,
       tokenUsage: {
-        total: totalTokens,
-        references: referenceTokens,
-        context: contextTokens,
-        input: inputTokens,
-        output: outputTokens,
+        native_prompt: response.data.tokenUsage.prompt_tokens,
+        native_completion: response.data.tokenUsage.completion_tokens,
+        system: tokenCounts.system,
+        task: tokenCounts.task,
+        translation: tokenCounts.translation,
       },
     };
   } catch (error) {
