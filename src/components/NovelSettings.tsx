@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Novel } from '@/types';
+import { Novel, Reference } from '@/types';
 import { FiSave, FiX } from 'react-icons/fi';
+import ReferenceInput from './ReferenceInput';
+import ReferenceItem from './ReferenceItem';
 
 interface NovelSettingsProps {
   novel: Novel;
@@ -20,25 +22,44 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     sourceLanguage: novel.sourceLanguage,
     targetLanguage: novel.targetLanguage,
     systemPrompt: novel.systemPrompt,
-    references: novel.references.join('\n')
+    references: novel.references
   });
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  const handleAddReference = (reference: Omit<Reference, 'id'>) => {
+    const newReference: Reference = {
+      ...reference,
+      id: crypto.randomUUID()
+    };
+    setFormData(prev => ({
+      ...prev,
+      references: [...prev.references, newReference]
+    }));
+  };
+
+  const handleDeleteReference = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      references: prev.references.filter(ref => ref.id !== id)
+    }));
+  };
+
+  const handleEditReference = (updatedReference: Reference) => {
+    setFormData(prev => ({
+      ...prev,
+      references: prev.references.map(ref => 
+        ref.id === updatedReference.id ? updatedReference : ref
+      )
+    }));
+  };
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    onSave({
-      title: formData.title,
-      sourceLanguage: formData.sourceLanguage,
-      targetLanguage: formData.targetLanguage,
-      systemPrompt: formData.systemPrompt,
-      references: formData.references.split('\n').filter(line => line.trim())
-    });
-    
+    onSave(formData);
     onClose();
   };
   
@@ -109,15 +130,18 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
           </div>
           
           <div>
-            <label className="block text-sm font-medium mb-1">References (one per line)</label>
-            <textarea
-              name="references"
-              value={formData.references}
-              onChange={handleChange}
-              rows={6}
-              className="w-full p-2 border rounded"
-              placeholder="Character names, terms, wiki links..."
-            />
+            <label className="block text-sm font-medium mb-1">References</label>
+            <div className="space-y-4">
+              {formData.references.map(reference => (
+                <ReferenceItem
+                  key={reference.id}
+                  reference={reference}
+                  onDelete={handleDeleteReference}
+                  onEdit={handleEditReference}
+                />
+              ))}
+              <ReferenceInput onAdd={handleAddReference} />
+            </div>
           </div>
           
           <div className="flex justify-end pt-2">

@@ -6,9 +6,11 @@ import { Novel } from '@/types';
 import { saveNovel } from '@/services/storage';
 import Link from 'next/link';
 import { toast, Toaster } from 'react-hot-toast';
+import axios from 'axios';
 
 export default function NewNovel() {
   const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     sourceLanguage: '',
@@ -22,26 +24,29 @@ export default function NewNovel() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
-    const newNovel: Novel = {
-      id: `novel_${Date.now()}`,
-      title: formData.title,
-      sourceLanguage: formData.sourceLanguage,
-      targetLanguage: formData.targetLanguage,
-      systemPrompt: formData.systemPrompt,
-      references: formData.references.split('\n').filter(line => line.trim()),
-      chunks: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    
-    saveNovel(newNovel);
-    toast.success('Novel created successfully');
-    
-    // Redirect to the translation page
-    router.push(`/translate/${newNovel.id}`);
+    try {
+      const newNovel: Partial<Novel> = {
+        title: formData.title,
+        sourceLanguage: formData.sourceLanguage,
+        targetLanguage: formData.targetLanguage,
+        systemPrompt: formData.systemPrompt,
+        references: formData.references.split('\n').filter(line => line.trim()),
+      };
+      
+      const response = await axios.post('/api/novels', newNovel);
+      toast.success('Novel created successfully');
+      
+      // Redirect to the translation page
+      router.push(`/translate/${response.data.id}`);
+    } catch (error) {
+      console.error('Failed to create novel:', error);
+      toast.error('Failed to create novel');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -71,6 +76,7 @@ export default function NewNovel() {
               onChange={handleChange}
               className="w-full p-2 border rounded"
               required
+              disabled={isSubmitting}
             />
           </div>
           
@@ -85,6 +91,7 @@ export default function NewNovel() {
                 className="w-full p-2 border rounded"
                 placeholder="e.g., Japanese"
                 required
+                disabled={isSubmitting}
               />
             </div>
             
@@ -98,6 +105,7 @@ export default function NewNovel() {
                 className="w-full p-2 border rounded"
                 placeholder="e.g., English"
                 required
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -111,10 +119,8 @@ export default function NewNovel() {
               rows={4}
               className="w-full p-2 border rounded"
               placeholder="Instructions for translation style and guidelines..."
+              disabled={isSubmitting}
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Customize how the AI should translate your content, including style preferences.
-            </p>
           </div>
           
           <div>
@@ -123,21 +129,31 @@ export default function NewNovel() {
               name="references"
               value={formData.references}
               onChange={handleChange}
-              rows={6}
+              rows={4}
               className="w-full p-2 border rounded"
-              placeholder="Character names, terms, wiki links..."
+              placeholder="Enter reference texts or URLs, one per line..."
+              disabled={isSubmitting}
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Add glossary terms, character names, or wiki links to help with translation.
-            </p>
           </div>
           
-          <div className="pt-4">
+          <div className="flex justify-end pt-4">
+            <Link
+              href="/"
+              className="px-4 py-2 text-gray-700 bg-gray-200 rounded mr-2 hover:bg-gray-300"
+            >
+              Cancel
+            </Link>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded flex items-center hover:bg-blue-700"
+              disabled={isSubmitting}
+              className={`px-4 py-2 rounded flex items-center ${
+                isSubmitting
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
             >
-              <FiSave className="mr-2" /> Create Novel
+              <FiSave className="mr-1" />
+              {isSubmitting ? 'Creating...' : 'Create Novel'}
             </button>
           </div>
         </form>

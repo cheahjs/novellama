@@ -18,23 +18,35 @@ export default function TranslatePage() {
   const [novel, setNovel] = useState<Novel | null>(null);
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
-    if (id && typeof id === 'string') {
-      const loadedNovel = getNovel(id);
-      if (loadedNovel) {
-        setNovel(loadedNovel);
-        // Set current chunk to the latest one if it exists
-        if (loadedNovel.chunks.length > 0) {
-          setCurrentChunkIndex(loadedNovel.chunks.length - 1);
+    const loadNovel = async () => {
+      if (id && typeof id === 'string') {
+        try {
+          const loadedNovel = await getNovel(id);
+          if (loadedNovel) {
+            setNovel(loadedNovel);
+            // Set current chunk to the latest one if it exists
+            if (loadedNovel.chunks.length > 0) {
+              setCurrentChunkIndex(loadedNovel.chunks.length - 1);
+            }
+          } else {
+            // Novel not found, redirect to home
+            toast.error('Novel not found');
+            router.push('/');
+          }
+        } catch (error) {
+          toast.error('Failed to load novel');
+          router.push('/');
+        } finally {
+          setIsLoadingNovel(false);
         }
-      } else {
-        // Novel not found, redirect to home
-        toast.error('Novel not found');
-        router.push('/');
       }
-    }
+    };
+
+    loadNovel();
   }, [id, router]);
 
   const handleTranslate = async (sourceContent: string) => {
@@ -65,10 +77,10 @@ export default function TranslatePage() {
       
       // Update the novel with the new chunk
       if (novel) {
-        addChunkToNovel(novel.id, newChunk);
+        await addChunkToNovel(novel.id, newChunk);
         
         // Reload the novel to get the updated chunks
-        const updatedNovel = getNovel(novel.id);
+        const updatedNovel = await getNovel(novel.id);
         if (updatedNovel) {
           setNovel(updatedNovel);
           // Navigate to the new chunk
@@ -91,25 +103,40 @@ export default function TranslatePage() {
     }
   };
 
-  const updateNovelSettings = (updatedSettings: Partial<Novel>) => {
+  const updateNovelSettings = async (updatedSettings: Partial<Novel>) => {
     if (novel) {
-      const updatedNovel = {
-        ...novel,
-        ...updatedSettings,
-        updatedAt: Date.now()
-      };
-      
-      saveNovel(updatedNovel);
-      setNovel(updatedNovel);
-      toast.success('Settings updated successfully');
+      try {
+        const updatedNovel = {
+          ...novel,
+          ...updatedSettings,
+          updatedAt: Date.now()
+        };
+        
+        await saveNovel(updatedNovel);
+        setNovel(updatedNovel);
+        toast.success('Settings updated successfully');
+      } catch (error) {
+        toast.error('Failed to update settings');
+      }
     }
   };
 
   // Show loading state or not found message
-  if (!novel) {
+  if (isLoadingNovel) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <p>Loading novel...</p>
+      </div>
+    );
+  }
+
+  if (!novel) {
+    return (
+      <div className="container mx-auto px-4 py-8 text-center">
+        <p>Novel not found</p>
+        <Link href="/" className="text-blue-600 hover:underline">
+          Return to Home
+        </Link>
       </div>
     );
   }

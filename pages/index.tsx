@@ -9,18 +9,33 @@ import { toast, Toaster } from 'react-hot-toast';
 
 export default function Home() {
   const [novels, setNovels] = useState<Novel[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load novels from localStorage
-    const loadedNovels = getNovels();
-    setNovels(loadedNovels);
+    // Load novels from the server
+    const loadNovels = async () => {
+      try {
+        const loadedNovels = await getNovels();
+        setNovels(loadedNovels);
+      } catch (error) {
+        toast.error('Failed to load novels');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadNovels();
   }, []);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this novel? This action cannot be undone.')) {
-      deleteNovel(id);
-      setNovels(novels.filter(novel => novel.id !== id));
-      toast.success('Novel deleted successfully');
+      try {
+        await deleteNovel(id);
+        setNovels(novels.filter(novel => novel.id !== id));
+        toast.success('Novel deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete novel');
+      }
     }
   };
 
@@ -48,16 +63,24 @@ export default function Home() {
           Translate novels chapter by chapter using AI
         </p>
 
-        <NovelList novels={novels} onDelete={handleDelete} />
-        
-        {novels.length === 0 && (
+        {isLoading ? (
           <div className="mt-8 text-center">
-            <Link href="/new"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <FiPlus className="mr-1" /> Start Your First Translation
-            </Link>
+            Loading novels...
           </div>
+        ) : (
+          <>
+            <NovelList novels={novels} onDelete={handleDelete} />
+            
+            {novels.length === 0 && (
+              <div className="mt-8 text-center">
+                <Link href="/new"
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <FiPlus className="mr-1" /> Start Your First Translation
+                </Link>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
