@@ -1,5 +1,6 @@
 import React from 'react';
 import { Reference } from '@/types';
+import { useTokenizer } from '@/hooks/useTokenizer';
 
 interface ReferenceItemProps {
   reference: Reference;
@@ -12,13 +13,22 @@ const ReferenceItem: React.FC<ReferenceItemProps> = ({
   onDelete, 
   onEdit 
 }) => {
+  const { count, isLoading } = useTokenizer(reference.content);
+  
+  // Update reference.tokenCount if it's different from the calculated count
+  React.useEffect(() => {
+    if (!isLoading && count !== null && count !== reference.tokenCount) {
+      reference.tokenCount = count;
+    }
+  }, [count, isLoading, reference]);
+
   return (
     <div className="reference-item border rounded-lg p-4 mb-4">
       <div className="flex justify-between items-center mb-2">
         <h3 className="font-semibold">{reference.title}</h3>
         <div className="flex items-center">
           <span className="text-sm text-gray-500 mr-4">
-            {reference.tokenCount?.toLocaleString() || 'Unknown'} tokens
+            {isLoading ? '...' : (count?.toLocaleString() || 'Unknown')} tokens
           </span>
           
           {onEdit && (

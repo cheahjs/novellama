@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiEye, FiEyeOff, FiRefreshCw } from 'react-icons/fi';
 import { TranslationChunk } from '@/types';
 import LiveTokenCounter from './LiveTokenCounter';
 
@@ -25,12 +25,18 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     }
   };
 
+  const handleRetranslate = () => {
+    if (currentChunk) {
+      setSourceContent(currentChunk.sourceContent);
+    }
+  };
+
   return (
     <div className="mt-6 space-y-4">
       {currentChunk ? (
         <div className="rounded-lg border p-4">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="font-medium">Translation</h3>
+            <h3 className="font-medium text-gray-500"></h3>
             <button
               type="button"
               onClick={() => setShowSource(!showSource)}
@@ -49,8 +55,18 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           </div>
           
           {showSource && (
-            <div className="mb-4 p-3 bg-gray-50 rounded text-gray-700 text-sm whitespace-pre-wrap">
-              {currentChunk.sourceContent}
+            <div className="relative mb-4">
+              <div className="p-3 bg-gray-900 rounded text-gray-100 text-sm whitespace-pre-wrap">
+                {currentChunk.sourceContent}
+              </div>
+              <button
+                type="button"
+                onClick={handleRetranslate}
+                className="absolute top-2 right-2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white flex items-center text-sm"
+                title="Retranslate this text"
+              >
+                <FiRefreshCw className="mr-1" /> Retranslate
+              </button>
             </div>
           )}
           
@@ -82,7 +98,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           disabled={isLoading || !sourceContent.trim()}
           className={`w-full py-2 px-4 rounded-md ${
             isLoading || !sourceContent.trim()
-              ? 'bg-gray-300 cursor-not-allowed'
+              ? 'bg-gray-500 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 text-white'
           }`}
         >

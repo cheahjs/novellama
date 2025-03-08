@@ -28,33 +28,35 @@ const ChunkNavigation: React.FC<ChunkNavigationProps> = ({
   if (totalChunks === 0) return null;
 
   return (
-    <div className="flex items-center justify-between mt-4 mb-2">
+    <div className="flex items-center justify-between py-4 px-6 border-t border-b border-gray-200 bg-gray">
       <button
         onClick={goToPrevious}
         disabled={currentIndex <= 0}
-        className={`flex items-center px-3 py-1 rounded ${
+        className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors duration-200 ${
           currentIndex <= 0
-            ? 'text-gray-400 cursor-not-allowed'
-            : 'text-blue-600 hover:text-blue-800'
+            ? 'text-gray-300 cursor-not-allowed'
+            : 'text-gray-700 hover:bg-gray-100'
         }`}
       >
-        <FiChevronLeft className="mr-1" /> Previous
+        <FiChevronLeft className="w-5 h-5" />
+        <span>Previous Chapter</span>
       </button>
       
-      <div className="text-sm text-gray-600">
-        {totalChunks > 0 ? `${currentIndex + 1} / ${totalChunks}` : '0 / 0'}
+      <div className="text-sm font-medium text-gray-600">
+        Chapter {currentIndex + 1} of {totalChunks}
       </div>
       
       <button
         onClick={goToNext}
         disabled={currentIndex >= totalChunks - 1}
-        className={`flex items-center px-3 py-1 rounded ${
+        className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors duration-200 ${
           currentIndex >= totalChunks - 1
-            ? 'text-gray-400 cursor-not-allowed'
-            : 'text-blue-600 hover:text-blue-800'
+            ? 'text-gray-300 cursor-not-allowed'
+            : 'text-gray-700 hover:bg-gray-100'
         }`}
       >
-        Next <FiChevronRight className="ml-1" />
+        <span>Next Chapter</span>
+        <FiChevronRight className="w-5 h-5" />
       </button>
     </div>
   );
