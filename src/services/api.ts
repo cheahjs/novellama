@@ -19,17 +19,17 @@ export const translateContent = async (
         : "";
 
     let context: { role: string; content: string }[] = [];
-    if (request.previousChunks && request.previousChunks.length > 0) {
+    if (request.previousChapters && request.previousChapters.length > 0) {
       // Format previous chunks as context
-      context = request.previousChunks
-        .map((chunk) => [
+      context = request.previousChapters
+        .map((chapter) => [
           {
             role: "user",
-            content: `Translate the following text from ${request.sourceLanguage} to ${request.targetLanguage}:\n\n${chunk.sourceContent}`,
+            content: `Translate the following text from ${request.sourceLanguage} to ${request.targetLanguage}:\n\n${chapter.sourceContent}`,
           },
           {
             role: "assistant",
-            content: `${chunk.translatedContent}`,
+            content: `${chapter.translatedContent}`,
           },
         ])
         .flat();

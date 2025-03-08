@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FiArrowLeft, FiSettings } from 'react-icons/fi';
 import { Novel, TranslationChapter } from '@/types';
 import { getNovel, saveNovel, addChapterToNovel } from '@/services/storage';
+import { translateContent } from '@/services/api';
 import TranslationEditor from '@/components/TranslationEditor';
 import ChapterNavigation from '@/components/ChapterNavigation';
 import NovelSettings from '@/components/NovelSettings';
@@ -13,16 +14,17 @@ import { toast, Toaster } from 'react-hot-toast';
 export default function TranslatePage() {
   const router = useRouter();
   const { id } = router.query;
-  
+
   const [novel, setNovel] = useState<Novel | null>(null);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [currentChapterNumber, setCurrentChapterNumber] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
 
   const loadNovel = async (novelId?: string) => {
     if (!novelId) return;
-    
+
     try {
       const loadedNovel = await getNovel(novelId);
       if (loadedNovel) {
@@ -57,48 +59,74 @@ export default function TranslatePage() {
 
   const handleTranslate = async (sourceContent: string) => {
     if (!novel) return;
-    
+
+    setIsLoading(true);
+
     try {
-      // Split content into lines and extract title from first line if it starts with #
-      const lines = sourceContent.split('\n');
-      
-      // Get up to 5 previous chapters for context
-      const contextChapters = novel.chapters?.slice(-5) || [];
-
-      // Mock translation response for now - replace with actual API call later
-      const response = {
-        translatedContent: `Translated: ${sourceContent}`
-      };
-
-      const title = lines[0].startsWith('# ') ? lines[0].substring(2) : `Chapter ${novel.chapters?.length ? novel.chapters.length + 1 : 1}`;
-      const chapterNumber = novel.chapters?.length ? novel.chapters.length + 1 : 1;
-
-      // Create a new chapter
-      const newChapter: TranslationChapter = {
-        id: `chapter_${Date.now()}`,
-        title,
+      // Remove the current chapter from the list of previous chapters
+      const previousChapters = novel.chapters?.filter(
+        (chapter) => chapter.id !== currentChapter?.id
+      ) ?? [];
+      const result = await translateContent({
         sourceContent,
-        translatedContent: response.translatedContent,
-        number: chapterNumber,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
+        sourceLanguage: novel.sourceLanguage,
+        targetLanguage: novel.targetLanguage,
+        systemPrompt: novel.systemPrompt,
+        references: novel.references,
+        previousChapters: previousChapters
+      });
+      const translatedLines = result.translatedContent.split('\n');
+      const title = translatedLines[0].startsWith('# ') ? translatedLines[0].substring(2) : `Chapter ${novel.chapters?.length ? novel.chapters.length + 1 : 1}`;
 
-      // Update the novel with the new chapter
-      await addChapterToNovel(novel.id, newChapter);
+      // Check if we're retranslating an existing chapter
+      if (currentChapter) {
+        // Update existing chapter
+        const updatedChapter: TranslationChapter = {
+          ...currentChapter,
+          title,
+          sourceContent,
+          translatedContent: result.translatedContent,
+          updatedAt: Date.now()
+        };
 
-      // Reload the novel to get the updated chapters
-      await loadNovel(novel.id);
+        // Create new chapters array with updated chapter
+        const updatedChapters = [...(novel.chapters || [])];
+        updatedChapters[currentChapterIndex] = updatedChapter;
 
-      // Navigate to the new chapter
-      const updatedNovel = await getNovel(novel.id);
-      if (updatedNovel) {
-        setCurrentChapterIndex(updatedNovel.chapters?.length ? updatedNovel.chapters.length - 1 : 0);
-        setCurrentChapterNumber(currentChapterNumber + 1);
+        // Update the novel with the modified chapter
+        const updatedNovel = {
+          ...novel,
+          chapters: updatedChapters,
+          updatedAt: Date.now()
+        };
+        await saveNovel(updatedNovel);
+        setNovel(updatedNovel);
+      } else {
+        // Create a new chapter
+        const chapterNumber = novel.chapters?.length ? novel.chapters.length + 1 : 1;
+
+        const newChapter: TranslationChapter = {
+          id: `chapter_${Date.now()}`,
+          title,
+          sourceContent,
+          translatedContent: result.translatedContent,
+          number: chapterNumber,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+
+        // Update the novel with the new chapter
+        await addChapterToNovel(novel.id, newChapter);
+        // Reload the novel to get the updated chapters
+        await loadNovel(novel.id);
       }
+
+      toast.success('Translation complete');
     } catch (error: unknown) {
       console.error('Translation error:', error);
       toast.error('Failed to translate content');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -129,7 +157,7 @@ export default function TranslatePage() {
           ...updatedSettings,
           updatedAt: Date.now()
         };
-        
+
         await saveNovel(updatedNovel);
         setNovel(updatedNovel);
         toast.success('Settings updated successfully');
@@ -170,40 +198,49 @@ export default function TranslatePage() {
 
       <main className="container mx-auto px-4 py-8 max-w-3xl">
         <Toaster position="top-right" />
-        
+
         <div className="flex items-center justify-between mb-6">
           <Link href="/" className="flex items-center text-blue-600 hover:underline">
             <FiArrowLeft className="mr-1" /> Back to Novels
           </Link>
-          
-          <button 
-            onClick={() => setShowSettings(true)} 
+
+          <button
+            onClick={() => setShowSettings(true)}
             className="flex items-center text-gray-600 hover:text-gray-200"
           >
             <FiSettings className="mr-1" /> Settings
           </button>
         </div>
-        
+
         <div className="mb-6">
           <h1 className="text-2xl font-bold">{novel.title}</h1>
           <p className="text-gray-600">
             {novel.sourceLanguage} → {novel.targetLanguage}
           </p>
         </div>
-        
+
         <ChapterNavigation
           currentIndex={currentChapterIndex}
           totalChapters={novel.chapters?.length || 0}
           onNavigate={handleNavigate}
           chapters={novel.chapters || []}
         />
-        
+
         <TranslationEditor
           novel={novel}
           currentChapter={currentChapter}
+          currentChapterNumber={currentChapterNumber}
           onTranslate={handleTranslate}
+          isLoading={isLoading}
         />
-        
+
+        <ChapterNavigation
+          currentIndex={currentChapterIndex}
+          totalChapters={novel.chapters?.length || 0}
+          onNavigate={handleNavigate}
+          chapters={novel.chapters || []}
+        />
+
         <NovelSettings
           novel={novel}
           onSave={updateNovelSettings}

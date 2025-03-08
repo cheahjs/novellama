@@ -33,6 +33,8 @@ export interface TranslationRequest {
   targetLanguage: string;
   sourceContent: string;
   previousChapters?: TranslationChapter[];
+  systemPrompt: string;
+  references: Reference[];
 }
 
 export interface TranslationResponse {

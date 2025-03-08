@@ -39,8 +39,8 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
         disabled={currentIndex <= 0}
         className={`flex items-center space-x-2 px-4 py-2 rounded-lg ${
           currentIndex <= 0
-            ? 'text-gray-400 cursor-not-allowed'
-            : 'text-gray-700 hover:bg-gray-100'
+            ? 'text-gray-700 cursor-not-allowed'
+            : 'text-gray-400 hover:bg-gray-700'
         }`}
       >
         <FiChevronLeft className="w-5 h-5" />
@@ -60,7 +60,7 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
 
       <button
         onClick={handleNext}
-        className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100"
+        className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-700"
       >
         <span>{currentIndex >= totalChapters - 1 ? 'New Chapter' : 'Next Chapter'}</span>
         {currentIndex >= totalChapters - 1 ? <FiPlus className="w-5 h-5" /> : <FiChevronRight className="w-5 h-5" />}
