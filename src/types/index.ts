@@ -1,9 +1,11 @@
-export interface TranslationChunk {
+export interface TranslationChapter {
   id: string;
   title: string;
   sourceContent: string;
   translatedContent: string;
-  timestamp: number;
+  number: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface Reference {
@@ -21,18 +23,16 @@ export interface Novel {
   systemPrompt: string;
   sourceUrl: string; // URL to the novel on syosetu.com
   references: Reference[];
-  chunks: TranslationChunk[];
+  chapters: TranslationChapter[];
   createdAt: number;
   updatedAt: number;
 }
 
 export interface TranslationRequest {
-  sourceContent: string;
   sourceLanguage: string;
   targetLanguage: string;
-  systemPrompt: string;
-  references: Reference[];
-  previousChunks?: TranslationChunk[];
+  sourceContent: string;
+  previousChapters?: TranslationChapter[];
 }
 
 export interface TranslationResponse {

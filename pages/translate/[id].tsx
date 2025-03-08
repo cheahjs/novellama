@@ -3,11 +3,10 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { FiArrowLeft, FiSettings } from 'react-icons/fi';
-import { Novel, TranslationChunk } from '@/types';
-import { getNovel, saveNovel, addChunkToNovel } from '@/services/storage';
-import { translateContent } from '@/services/api';
+import { Novel, TranslationChapter } from '@/types';
+import { getNovel, saveNovel, addChapterToNovel } from '@/services/storage';
 import TranslationEditor from '@/components/TranslationEditor';
-import ChunkNavigation from '@/components/ChunkNavigation';
+import ChapterNavigation from '@/components/ChapterNavigation';
 import NovelSettings from '@/components/NovelSettings';
 import { toast, Toaster } from 'react-hot-toast';
 
@@ -16,112 +15,109 @@ export default function TranslatePage() {
   const { id } = router.query;
   
   const [novel, setNovel] = useState<Novel | null>(null);
-  const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
+  const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [currentChapterNumber, setCurrentChapterNumber] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
   const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
 
-  useEffect(() => {
-    const loadNovel = async () => {
-      if (id && typeof id === 'string') {
-        try {
-          const loadedNovel = await getNovel(id);
-          if (loadedNovel) {
-            setNovel(loadedNovel);
-            // Set current chunk to the latest one if it exists
-            if (loadedNovel.chunks.length > 0) {
-              const lastChunk = loadedNovel.chunks[loadedNovel.chunks.length - 1];
-              setCurrentChunkIndex(loadedNovel.chunks.length - 1);
-              // Try to extract chapter number from the last chunk's title
-              const chapterMatch = lastChunk.title.match(/Chapter (\d+)/i);
-              setCurrentChapterNumber(chapterMatch ? parseInt(chapterMatch[1]) - 1 : loadedNovel.chunks.length - 1);
-            }
-          } else {
-            // Novel not found, redirect to home
-            toast.error('Novel not found');
-            router.push('/');
-          }
-        } catch (error: unknown) {
-          console.error('Failed to load novel:', error);
-          toast.error('Failed to load novel');
-          router.push('/');
-        } finally {
-          setIsLoadingNovel(false);
+  const loadNovel = async (novelId?: string) => {
+    if (!novelId) return;
+    
+    try {
+      const loadedNovel = await getNovel(novelId);
+      if (loadedNovel) {
+        setNovel(loadedNovel);
+        // Set current chapter to the latest one if it exists
+        if (loadedNovel.chapters?.length > 0) {
+          const lastChapter = loadedNovel.chapters[loadedNovel.chapters.length - 1];
+          setCurrentChapterIndex(loadedNovel.chapters.length - 1);
+          // Try to extract chapter number from the last chapter's title
+          const chapterMatch = lastChapter.title.match(/Chapter (\d+)/i);
+          setCurrentChapterNumber(chapterMatch ? parseInt(chapterMatch[1]) - 1 : loadedNovel.chapters.length - 1);
         }
+      } else {
+        // Novel not found, redirect to home
+        toast.error('Novel not found');
+        router.push('/');
       }
-    };
+    } catch (error: unknown) {
+      console.error('Failed to load novel:', error);
+      toast.error('Failed to load novel');
+      router.push('/');
+    } finally {
+      setIsLoadingNovel(false);
+    }
+  };
 
-    loadNovel();
-  }, [id, router]);
+  useEffect(() => {
+    if (id && typeof id === 'string') {
+      loadNovel(id);
+    }
+  }, [id]);
 
   const handleTranslate = async (sourceContent: string) => {
     if (!novel) return;
     
-    setIsLoading(true);
-    
     try {
-      // Get up to 5 previous chunks for context
-      const contextChunks = novel.chunks.slice(-5);
-      
-      const result = await translateContent({
-        sourceContent,
-        sourceLanguage: novel.sourceLanguage,
-        targetLanguage: novel.targetLanguage,
-        systemPrompt: novel.systemPrompt,
-        references: novel.references,
-        previousChunks: contextChunks
-      });
-
-      // Extract title from the first line if it starts with #
+      // Split content into lines and extract title from first line if it starts with #
       const lines = sourceContent.split('\n');
-      const title = lines[0].startsWith('# ') ? lines[0].substring(2) : `Chapter ${novel.chunks.length + 1}`;
       
-      // Create a new chunk
-      const newChunk: TranslationChunk = {
-        id: `chunk_${Date.now()}`,
+      // Get up to 5 previous chapters for context
+      const contextChapters = novel.chapters?.slice(-5) || [];
+
+      // Mock translation response for now - replace with actual API call later
+      const response = {
+        translatedContent: `Translated: ${sourceContent}`
+      };
+
+      const title = lines[0].startsWith('# ') ? lines[0].substring(2) : `Chapter ${novel.chapters?.length ? novel.chapters.length + 1 : 1}`;
+      const chapterNumber = novel.chapters?.length ? novel.chapters.length + 1 : 1;
+
+      // Create a new chapter
+      const newChapter: TranslationChapter = {
+        id: `chapter_${Date.now()}`,
         title,
         sourceContent,
-        translatedContent: result.translatedContent,
-        timestamp: Date.now()
+        translatedContent: response.translatedContent,
+        number: chapterNumber,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
       };
-      
-      // Update the novel with the new chunk
-      if (novel) {
-        await addChunkToNovel(novel.id, newChunk);
-        
-        // Reload the novel to get the updated chunks
-        const updatedNovel = await getNovel(novel.id);
-        if (updatedNovel) {
-          setNovel(updatedNovel);
-          // Navigate to the new chunk
-          setCurrentChunkIndex(updatedNovel.chunks.length - 1);
-        }
+
+      // Update the novel with the new chapter
+      await addChapterToNovel(novel.id, newChapter);
+
+      // Reload the novel to get the updated chapters
+      await loadNovel(novel.id);
+
+      // Navigate to the new chapter
+      const updatedNovel = await getNovel(novel.id);
+      if (updatedNovel) {
+        setCurrentChapterIndex(updatedNovel.chapters?.length ? updatedNovel.chapters.length - 1 : 0);
+        setCurrentChapterNumber(currentChapterNumber + 1);
       }
-      
-      toast.success('Translation complete');
     } catch (error: unknown) {
       console.error('Translation error:', error);
       toast.error('Failed to translate content');
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const handleNavigate = (index: number, isNewChapter?: boolean) => {
+  const handleNavigate = (index: number) => {
     if (!novel) return;
 
-    if (isNewChapter) {
-      // When navigating to a new chapter, set both indices
-      setCurrentChapterNumber(index);
-      setCurrentChunkIndex(novel.chunks.length);
-    } else if (index >= 0 && index < novel.chunks.length) {
-      // When navigating existing chunks, update both indices
-      setCurrentChunkIndex(index);
-      // Try to extract chapter number from chunk title
-      const chunk = novel.chunks[index];
-      const chapterMatch = chunk.title.match(/Chapter (\d+)/i);
-      setCurrentChapterNumber(chapterMatch ? parseInt(chapterMatch[1]) - 1 : index);
+    if (index >= (novel.chapters?.length || 0)) {
+      // When creating a new chapter, update both indices
+      setCurrentChapterNumber(currentChapterNumber + 1);
+      setCurrentChapterIndex(novel.chapters?.length || 0);
+    } else if (index >= 0 && index < (novel.chapters?.length || 0)) {
+      // When navigating existing chapters, update both indices
+      setCurrentChapterIndex(index);
+      // Try to extract chapter number from chapter title
+      const chapter = novel.chapters?.[index];
+      if (chapter) {
+        const chapterMatch = chapter.title.match(/Chapter (\d+)/i);
+        setCurrentChapterNumber(chapterMatch ? parseInt(chapterMatch[1]) - 1 : index);
+      }
     }
   };
 
@@ -164,7 +160,7 @@ export default function TranslatePage() {
     );
   }
 
-  const currentChunk = novel.chunks[currentChunkIndex] || null;
+  const currentChapter = novel.chapters?.[currentChapterIndex] || null;
 
   return (
     <div>
@@ -195,20 +191,17 @@ export default function TranslatePage() {
           </p>
         </div>
         
-        <ChunkNavigation
-          currentIndex={currentChunkIndex}
-          totalChunks={novel.chunks.length}
+        <ChapterNavigation
+          currentIndex={currentChapterIndex}
+          totalChapters={novel.chapters?.length || 0}
           onNavigate={handleNavigate}
-          chunks={novel.chunks}
-          currentChapterNumber={currentChapterNumber}
+          chapters={novel.chapters || []}
         />
         
         <TranslationEditor
-          onSubmit={handleTranslate}
-          currentChunk={currentChunk}
-          isLoading={isLoading}
           novel={novel}
-          currentChapterNumber={currentChapterNumber}
+          currentChapter={currentChapter}
+          onTranslate={handleTranslate}
         />
         
         <NovelSettings

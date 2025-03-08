@@ -1,4 +1,4 @@
-import { Novel, TranslationChunk } from '@/types';
+import { Novel, TranslationChapter } from '@/types';
 import axios from 'axios';
 
 export const saveNovel = async (novel: Novel): Promise<void> => {
@@ -48,16 +48,21 @@ export const deleteNovel = async (id: string): Promise<void> => {
   }
 };
 
-export const addChunkToNovel = async (novelId: string, chunk: TranslationChunk): Promise<void> => {
+export const addChapterToNovel = async (novelId: string, chapter: TranslationChapter): Promise<void> => {
   try {
     const novel = await getNovel(novelId);
-    if (novel) {
-      novel.chunks.push(chunk);
-      novel.updatedAt = Date.now();
-      await saveNovel(novel);
+    if (!novel) throw new Error('Novel not found');
+
+    // Initialize chapters array if it doesn't exist
+    if (!novel.chapters) {
+      novel.chapters = [];
     }
+
+    novel.chapters.push(chapter);
+    novel.updatedAt = Date.now();
+    await saveNovel(novel);
   } catch (error) {
-    console.error('Failed to add chunk to novel:', error);
+    console.error('Failed to add chapter to novel:', error);
     throw error;
   }
 };

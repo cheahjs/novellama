@@ -9,7 +9,7 @@ interface NovelListProps {
 }
 
 const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
-  if (novels.length === 0) {
+  if (!novels || novels.length === 0) {
     return (
       <div className="text-center py-10">
         <FiBook className="mx-auto text-4xl text-gray-400" />
@@ -26,8 +26,8 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
           <div className="text-sm text-gray-500 my-2">
             {novel.sourceLanguage} → {novel.targetLanguage}
           </div>
-          <div className="text-sm">
-            {novel.chunks.length} chunks translated
+          <div className="text-sm text-gray-500">
+            {novel.chapters?.length || 0} chapters translated
           </div>
           <div className="mt-4 flex justify-between">
             <Link href={`/translate/${novel.id}`} className="text-blue-600 hover:underline flex items-center">

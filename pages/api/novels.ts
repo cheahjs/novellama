@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { Novel } from '@/types';
 import { readNovels, getNovelById, saveNovel, deleteNovel } from '@/utils/fileStorage';
+import { nanoid } from 'nanoid';
 
 export default async function handler(
   req: NextApiRequest,
@@ -22,15 +23,21 @@ export default async function handler(
 
       case 'POST':
         // Create a new novel
-        const newNovel: Novel = {
-          ...req.body,
-          id: `novel_${Date.now()}`,
+        const body = req.body;
+        const novel: Novel = {
+          id: nanoid(),
+          title: body.title,
+          sourceLanguage: body.sourceLanguage,
+          targetLanguage: body.targetLanguage,
+          sourceUrl: body.sourceUrl || '',
+          systemPrompt: body.systemPrompt || '',
+          references: [],
+          chapters: [],
           createdAt: Date.now(),
-          updatedAt: Date.now(),
-          chunks: []
+          updatedAt: Date.now()
         };
-        await saveNovel(newNovel);
-        return res.status(201).json(newNovel);
+        await saveNovel(novel);
+        return res.status(201).json(novel);
 
       case 'PUT':
         // Update a novel

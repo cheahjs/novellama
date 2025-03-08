@@ -1,29 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiEye, FiEyeOff, FiRefreshCw, FiDownload } from 'react-icons/fi';
-import { TranslationChunk, Novel } from '@/types';
+import { TranslationChapter, Novel } from '@/types';
 import LiveTokenCounter from './LiveTokenCounter';
 
 interface TranslationEditorProps {
-  onSubmit: (sourceContent: string) => Promise<void>;
-  currentChunk: TranslationChunk | null;
-  isLoading: boolean;
-  novel?: Novel;
-  currentChapterNumber?: number;
+  novel: Novel;
+  currentChapter: TranslationChapter | null;
+  onTranslate: (sourceContent: string) => Promise<void>;
 }
 
-const TranslationEditor: React.FC<TranslationEditorProps> = ({ 
-  onSubmit, 
-  currentChunk,
-  isLoading,
+const TranslationEditor: React.FC<TranslationEditorProps> = ({
   novel,
-  currentChapterNumber = -1
+  currentChapter,
+  onTranslate,
 }) => {
   const [sourceContent, setSourceContent] = useState<string>('');
   const [showSource, setShowSource] = useState<boolean>(false);
   const [isScrapingChapter, setIsScrapingChapter] = useState<boolean>(false);
 
+  useEffect(() => {
+    if (currentChapter) {
+      setSourceContent(currentChapter.sourceContent);
+    }
+  }, [currentChapter]);
+
   const handleScrapeChapter = async () => {
-    if (!novel?.sourceUrl || currentChapterNumber < 0) return;
+    if (!novel?.sourceUrl) return;
     
     try {
       setIsScrapingChapter(true);
@@ -32,7 +34,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: novel.sourceUrl,
-          chapterNumber: currentChapterNumber + 1, // syosetu.com chapters start from 1
+          chapterNumber: (currentChapter?.number ?? 0) + 1,
           type: 'syosetu'
         })
       });
@@ -52,26 +54,26 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (sourceContent.trim() && !isLoading) {
-      await onSubmit(sourceContent);
+    if (sourceContent.trim() && !isScrapingChapter) {
+      await onTranslate(sourceContent);
       setSourceContent('');
     }
   };
 
   const handleRetranslate = () => {
-    if (currentChunk) {
-      setSourceContent(currentChunk.sourceContent);
+    if (currentChapter) {
+      setSourceContent(currentChapter.sourceContent);
     }
   };
 
-  const canScrapeChapter = novel?.sourceUrl && currentChapterNumber >= 0;
+  const canScrapeChapter = novel?.sourceUrl;
 
   return (
     <div className="mt-6 space-y-4">
-      {currentChunk ? (
+      {currentChapter ? (
         <div className="rounded-lg border p-4">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="font-medium text-gray-500">{currentChunk.title}</h3>
+            <h3 className="font-medium text-gray-500">{currentChapter.title}</h3>
             <button
               type="button"
               onClick={() => setShowSource(!showSource)}
@@ -92,7 +94,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           {showSource && (
             <div className="relative mb-4">
               <div className="p-3 bg-gray-900 rounded text-gray-100 text-sm whitespace-pre-wrap">
-                {currentChunk.sourceContent}
+                {currentChapter.sourceContent}
               </div>
               <button
                 type="button"
@@ -105,8 +107,12 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             </div>
           )}
           
-          <div className="whitespace-pre-wrap">
-            {currentChunk.translatedContent}
+          <div className="w-full h-64 bg-white rounded-lg border border-gray-300 p-4 overflow-y-auto">
+            {currentChapter.sourceContent}
+          </div>
+          
+          <div className="w-full h-64 bg-white rounded-lg border border-gray-300 p-4 overflow-y-auto">
+            {currentChapter.translatedContent}
           </div>
         </div>
       ) : (
@@ -122,7 +128,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             onChange={(e) => setSourceContent(e.target.value)}
             placeholder={isScrapingChapter ? 'Loading chapter content...' : 'Enter text to translate...'}
             className="w-full h-40 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={isLoading || isScrapingChapter}
+            disabled={isScrapingChapter}
           />
           <div className="absolute top-2 right-2">
             <LiveTokenCounter text={sourceContent} className="bg-gray-800 px-2 py-1 rounded" />
@@ -133,9 +139,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           <button
             type="button"
             onClick={handleScrapeChapter}
-            disabled={!canScrapeChapter || isScrapingChapter || isLoading}
+            disabled={!canScrapeChapter || isScrapingChapter}
             className={`flex-1 py-2 px-4 rounded-md flex items-center justify-center ${
-              !canScrapeChapter || isScrapingChapter || isLoading
+              !canScrapeChapter || isScrapingChapter
                 ? 'bg-gray-500 cursor-not-allowed'
                 : 'bg-green-600 hover:bg-green-700 text-white'
             }`}
@@ -146,14 +152,14 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
           <button
             type="submit"
-            disabled={isLoading || isScrapingChapter || !sourceContent.trim()}
+            disabled={isScrapingChapter || !sourceContent.trim()}
             className={`flex-1 py-2 px-4 rounded-md ${
-              isLoading || isScrapingChapter || !sourceContent.trim()
+              isScrapingChapter || !sourceContent.trim()
                 ? 'bg-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
           >
-            {isLoading ? 'Translating...' : 'Translate'}
+            {isScrapingChapter ? 'Translating...' : 'Translate'}
           </button>
         </div>
       </form>
