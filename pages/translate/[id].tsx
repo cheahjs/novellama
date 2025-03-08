@@ -159,7 +159,7 @@ export default function TranslatePage() {
           
           <button 
             onClick={() => setShowSettings(true)} 
-            className="flex items-center text-gray-600 hover:text-gray-900"
+            className="flex items-center text-gray-600 hover:text-gray-200"
           >
             <FiSettings className="mr-1" /> Settings
           </button>

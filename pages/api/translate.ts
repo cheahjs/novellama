@@ -14,16 +14,16 @@ export default async function handler(
 
     // Replace with your actual OpenAI-compatible API endpoint
     const apiResponse = await axios.post(
-      process.env.LLM_API_URL || 'https://api.openai.com/v1/chat/completions',
+      `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`,
       {
-        model: process.env.LLM_MODEL || 'gpt-4',
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
         messages,
         temperature: 0.3,
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.LLM_API_KEY}`,
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         },
       }
     );

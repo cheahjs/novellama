@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { TranslationChunk } from '@/types';
+import LiveTokenCounter from './LiveTokenCounter';
 
 interface TranslationEditorProps {
   onSubmit: (sourceContent: string) => Promise<void>;
@@ -64,13 +65,18 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
-        <textarea
-          value={sourceContent}
-          onChange={(e) => setSourceContent(e.target.value)}
-          placeholder="Enter text to translate..."
-          className="w-full h-40 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          disabled={isLoading}
-        />
+        <div className="relative">
+          <textarea
+            value={sourceContent}
+            onChange={(e) => setSourceContent(e.target.value)}
+            placeholder="Enter text to translate..."
+            className="w-full h-40 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isLoading}
+          />
+          <div className="absolute top-2 right-2">
+            <LiveTokenCounter text={sourceContent} className="bg-gray-900 px-2 py-1 rounded" />
+          </div>
+        </div>
         <button
           type="submit"
           disabled={isLoading || !sourceContent.trim()}

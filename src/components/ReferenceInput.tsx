@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { Reference } from '@/types';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import LiveTokenCounter from './LiveTokenCounter';
 
 interface ReferenceInputProps {
   onAdd: (reference: Omit<Reference, 'id'>) => void;
   initialReference?: Reference;
 }
 
-  const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference }) => {
+const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference }) => {
   const [inputType, setInputType] = useState<'text' | 'url'>(initialReference ? 'text' : 'text');
   const [title, setTitle] = useState(initialReference?.title || '');
   const [content, setContent] = useState(initialReference?.content || '');
@@ -89,7 +90,7 @@ interface ReferenceInputProps {
               className="w-full p-2 border rounded"
             />
           </div>
-          <div>
+          <div className="relative">
             <textarea
               placeholder="Reference Content"
               value={content}
@@ -97,6 +98,9 @@ interface ReferenceInputProps {
               rows={4}
               className="w-full p-2 border rounded"
             />
+            <div className="absolute top-2 right-2">
+              <LiveTokenCounter text={content} className="bg-gray-100 px-2 py-1 rounded" />
+            </div>
           </div>
         </>
       ) : (

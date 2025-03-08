@@ -3,6 +3,7 @@ import { Novel, Reference } from '@/types';
 import { FiSave, FiX } from 'react-icons/fi';
 import ReferenceInput from './ReferenceInput';
 import ReferenceItem from './ReferenceItem';
+import LiveTokenCounter from './LiveTokenCounter';
 
 interface NovelSettingsProps {
   novel: Novel;
@@ -67,7 +68,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-900 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Novel Settings</h2>
           <button 
@@ -119,14 +120,19 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
           
           <div>
             <label className="block text-sm font-medium mb-1">System Prompt</label>
-            <textarea
-              name="systemPrompt"
-              value={formData.systemPrompt}
-              onChange={handleChange}
-              rows={4}
-              className="w-full p-2 border rounded"
-              placeholder="Instructions for translation style and guidelines..."
-            />
+            <div className="relative">
+              <textarea
+                name="systemPrompt"
+                value={formData.systemPrompt}
+                onChange={handleChange}
+                rows={4}
+                className="w-full p-2 border rounded"
+                placeholder="Instructions for translation style and guidelines..."
+              />
+              <div className="absolute top-2 right-2">
+                <LiveTokenCounter text={formData.systemPrompt} className="bg-gray-100 px-2 py-1 rounded" />
+              </div>
+            </div>
           </div>
           
           <div>
