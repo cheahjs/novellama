@@ -23,6 +23,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     sourceLanguage: novel.sourceLanguage,
     targetLanguage: novel.targetLanguage,
     systemPrompt: novel.systemPrompt,
+    sourceUrl: novel.sourceUrl,
     references: novel.references
   });
   
@@ -116,6 +117,21 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
                 required
               />
             </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Source URL</label>
+            <input
+              type="url"
+              name="sourceUrl"
+              value={formData.sourceUrl}
+              onChange={handleChange}
+              className="w-full p-2 border rounded"
+              placeholder="https://ncode.syosetu.com/nxxxxxxx"
+              pattern="https://ncode\.syosetu\.com/n[a-z0-9]+/?$"
+              title="Please enter a valid syosetu.com novel URL"
+              required
+            />
           </div>
           
           <div>

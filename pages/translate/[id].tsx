@@ -17,6 +17,7 @@ export default function TranslatePage() {
   
   const [novel, setNovel] = useState<Novel | null>(null);
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
+  const [currentChapterNumber, setCurrentChapterNumber] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -30,14 +31,19 @@ export default function TranslatePage() {
             setNovel(loadedNovel);
             // Set current chunk to the latest one if it exists
             if (loadedNovel.chunks.length > 0) {
+              const lastChunk = loadedNovel.chunks[loadedNovel.chunks.length - 1];
               setCurrentChunkIndex(loadedNovel.chunks.length - 1);
+              // Try to extract chapter number from the last chunk's title
+              const chapterMatch = lastChunk.title.match(/Chapter (\d+)/i);
+              setCurrentChapterNumber(chapterMatch ? parseInt(chapterMatch[1]) - 1 : loadedNovel.chunks.length - 1);
             }
           } else {
             // Novel not found, redirect to home
             toast.error('Novel not found');
             router.push('/');
           }
-        } catch (error) {
+        } catch (error: unknown) {
+          console.error('Failed to load novel:', error);
           toast.error('Failed to load novel');
           router.push('/');
         } finally {
@@ -66,10 +72,15 @@ export default function TranslatePage() {
         references: novel.references,
         previousChunks: contextChunks
       });
+
+      // Extract title from the first line if it starts with #
+      const lines = sourceContent.split('\n');
+      const title = lines[0].startsWith('# ') ? lines[0].substring(2) : `Chapter ${novel.chunks.length + 1}`;
       
       // Create a new chunk
       const newChunk: TranslationChunk = {
         id: `chunk_${Date.now()}`,
+        title,
         sourceContent,
         translatedContent: result.translatedContent,
         timestamp: Date.now()
@@ -89,7 +100,7 @@ export default function TranslatePage() {
       }
       
       toast.success('Translation complete');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Translation error:', error);
       toast.error('Failed to translate content');
     } finally {
@@ -97,9 +108,20 @@ export default function TranslatePage() {
     }
   };
 
-  const handleNavigate = (index: number) => {
-    if (novel && index >= 0 && index < novel.chunks.length) {
+  const handleNavigate = (index: number, isNewChapter?: boolean) => {
+    if (!novel) return;
+
+    if (isNewChapter) {
+      // When navigating to a new chapter, set both indices
+      setCurrentChapterNumber(index);
+      setCurrentChunkIndex(novel.chunks.length);
+    } else if (index >= 0 && index < novel.chunks.length) {
+      // When navigating existing chunks, update both indices
       setCurrentChunkIndex(index);
+      // Try to extract chapter number from chunk title
+      const chunk = novel.chunks[index];
+      const chapterMatch = chunk.title.match(/Chapter (\d+)/i);
+      setCurrentChapterNumber(chapterMatch ? parseInt(chapterMatch[1]) - 1 : index);
     }
   };
 
@@ -115,7 +137,8 @@ export default function TranslatePage() {
         await saveNovel(updatedNovel);
         setNovel(updatedNovel);
         toast.success('Settings updated successfully');
-      } catch (error) {
+      } catch (error: unknown) {
+        console.error('Failed to update settings:', error);
         toast.error('Failed to update settings');
       }
     }
@@ -176,12 +199,16 @@ export default function TranslatePage() {
           currentIndex={currentChunkIndex}
           totalChunks={novel.chunks.length}
           onNavigate={handleNavigate}
+          chunks={novel.chunks}
+          currentChapterNumber={currentChapterNumber}
         />
         
         <TranslationEditor
           onSubmit={handleTranslate}
           currentChunk={currentChunk}
           isLoading={isLoading}
+          novel={novel}
+          currentChapterNumber={currentChapterNumber}
         />
         
         <NovelSettings

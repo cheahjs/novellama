@@ -1,5 +1,6 @@
 export interface TranslationChunk {
   id: string;
+  title: string;
   sourceContent: string;
   translatedContent: string;
   timestamp: number;
@@ -18,6 +19,7 @@ export interface Novel {
   sourceLanguage: string;
   targetLanguage: string;
   systemPrompt: string;
+  sourceUrl: string; // URL to the novel on syosetu.com
   references: Reference[];
   chunks: TranslationChunk[];
   createdAt: number;

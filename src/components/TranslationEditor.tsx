@@ -1,22 +1,55 @@
 import React, { useState } from 'react';
-import { FiEye, FiEyeOff, FiRefreshCw } from 'react-icons/fi';
-import { TranslationChunk } from '@/types';
+import { FiEye, FiEyeOff, FiRefreshCw, FiDownload } from 'react-icons/fi';
+import { TranslationChunk, Novel } from '@/types';
 import LiveTokenCounter from './LiveTokenCounter';
 
 interface TranslationEditorProps {
   onSubmit: (sourceContent: string) => Promise<void>;
   currentChunk: TranslationChunk | null;
   isLoading: boolean;
+  novel?: Novel;
+  currentChapterNumber?: number;
 }
 
 const TranslationEditor: React.FC<TranslationEditorProps> = ({ 
   onSubmit, 
   currentChunk,
-  isLoading 
+  isLoading,
+  novel,
+  currentChapterNumber = -1
 }) => {
   const [sourceContent, setSourceContent] = useState<string>('');
   const [showSource, setShowSource] = useState<boolean>(false);
-  
+  const [isScrapingChapter, setIsScrapingChapter] = useState<boolean>(false);
+
+  const handleScrapeChapter = async () => {
+    if (!novel?.sourceUrl || currentChapterNumber < 0) return;
+    
+    try {
+      setIsScrapingChapter(true);
+      const response = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: novel.sourceUrl,
+          chapterNumber: currentChapterNumber + 1, // syosetu.com chapters start from 1
+          type: 'syosetu'
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to scrape chapter');
+      
+      const data = await response.json();
+      if (data.title && data.content) {
+        setSourceContent(`# ${data.title}\n\n${data.content}`);
+      }
+    } catch (error) {
+      console.error('Error scraping chapter:', error);
+    } finally {
+      setIsScrapingChapter(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sourceContent.trim() && !isLoading) {
@@ -31,12 +64,14 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     }
   };
 
+  const canScrapeChapter = novel?.sourceUrl && currentChapterNumber >= 0;
+
   return (
     <div className="mt-6 space-y-4">
       {currentChunk ? (
         <div className="rounded-lg border p-4">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="font-medium text-gray-500"></h3>
+            <h3 className="font-medium text-gray-500">{currentChunk.title}</h3>
             <button
               type="button"
               onClick={() => setShowSource(!showSource)}
@@ -76,7 +111,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         </div>
       ) : (
         <div className="text-center py-8 text-gray-500">
-          Start translating by entering content below
+          {isScrapingChapter ? 'Scraping chapter content...' : 'Start translating by entering content below'}
         </div>
       )}
 
@@ -85,25 +120,42 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           <textarea
             value={sourceContent}
             onChange={(e) => setSourceContent(e.target.value)}
-            placeholder="Enter text to translate..."
+            placeholder={isScrapingChapter ? 'Loading chapter content...' : 'Enter text to translate...'}
             className="w-full h-40 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={isLoading}
+            disabled={isLoading || isScrapingChapter}
           />
           <div className="absolute top-2 right-2">
             <LiveTokenCounter text={sourceContent} className="bg-gray-800 px-2 py-1 rounded" />
           </div>
         </div>
-        <button
-          type="submit"
-          disabled={isLoading || !sourceContent.trim()}
-          className={`w-full py-2 px-4 rounded-md ${
-            isLoading || !sourceContent.trim()
-              ? 'bg-gray-500 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
-          }`}
-        >
-          {isLoading ? 'Translating...' : 'Translate'}
-        </button>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleScrapeChapter}
+            disabled={!canScrapeChapter || isScrapingChapter || isLoading}
+            className={`flex-1 py-2 px-4 rounded-md flex items-center justify-center ${
+              !canScrapeChapter || isScrapingChapter || isLoading
+                ? 'bg-gray-500 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
+          >
+            <FiDownload className="mr-2" />
+            {isScrapingChapter ? 'Loading Chapter...' : 'Load Chapter'}
+          </button>
+
+          <button
+            type="submit"
+            disabled={isLoading || isScrapingChapter || !sourceContent.trim()}
+            className={`flex-1 py-2 px-4 rounded-md ${
+              isLoading || isScrapingChapter || !sourceContent.trim()
+                ? 'bg-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
+          >
+            {isLoading ? 'Translating...' : 'Translate'}
+          </button>
+        </div>
       </form>
     </div>
   );
