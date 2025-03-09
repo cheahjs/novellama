@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { FiEye, FiEyeOff, FiRefreshCw, FiDownload } from "react-icons/fi";
-import { TranslationChapter, Novel } from "@/types";
+import { TranslationChapter, Novel, TranslationResponse } from "@/types";
 import LiveTokenCounter from "./LiveTokenCounter";
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import TokenUsage from "./TokenUsage";
 
 interface TranslationEditorProps {
   novel: Novel;
   currentChapter: TranslationChapter | null;
   currentChapterNumber: number;
-  onTranslate: (sourceContent: string) => Promise<void>;
+  onTranslate: (sourceContent: string) => Promise<TranslationResponse>;
   isLoading: boolean;
 }
 
@@ -19,16 +21,17 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   onTranslate,
   isLoading,
 }) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [sourceContent, setSourceContent] = useState<string>("");
   const [showSource, setShowSource] = useState<boolean>(false);
   const [isScrapingChapter, setIsScrapingChapter] = useState<boolean>(false);
   const [isRetranslating, setIsRetranslating] = useState<boolean>(false);
+  const [lastTokenUsage, setLastTokenUsage] = useState<TranslationResponse['tokenUsage']>(null);
 
   useEffect(() => {
     if (currentChapter) {
       if (isRetranslating) {
         setSourceContent(currentChapter.sourceContent);
-        setIsRetranslating(false);
       } else {
         setSourceContent("");
       }
@@ -66,7 +69,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sourceContent.trim() && !isScrapingChapter && !isLoading) {
-      await onTranslate(sourceContent);
+      const result = await onTranslate(sourceContent);
+      setLastTokenUsage(result.tokenUsage);
       setSourceContent("");
       setIsRetranslating(false);
     }
@@ -76,6 +80,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     if (currentChapter) {
       setSourceContent(currentChapter.sourceContent);
       setIsRetranslating(true);
+      setTimeout(() => {
+        textareaRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     }
   };
 
@@ -121,7 +128,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
           {!showSource && (
             <div className="prose prose-invert max-w-none translation-content">
-              <ReactMarkdown>{currentChapter.translatedContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkBreaks]}>{currentChapter.translatedContent}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -137,6 +144,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="relative">
             <textarea
+              ref={textareaRef}
               value={sourceContent}
               onChange={(e) => setSourceContent(e.target.value)}
               placeholder={
@@ -163,8 +171,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               onClick={handleScrapeChapter}
               disabled={!canScrapeChapter || isScrapingChapter || isLoading}
               className={`flex-1 py-2 px-4 rounded-md flex items-center justify-center ${!canScrapeChapter || isScrapingChapter || isLoading
-                  ? "bg-gray-500 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700 text-white"
+                ? "bg-gray-500 cursor-not-allowed"
+                : "bg-green-600 hover:bg-green-700 text-white"
                 }`}
             >
               <FiDownload className="mr-2" />
@@ -175,13 +183,17 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               type="submit"
               disabled={isScrapingChapter || isLoading || !sourceContent.trim()}
               className={`flex-1 py-2 px-4 rounded-md ${isScrapingChapter || isLoading || !sourceContent.trim()
-                  ? "bg-gray-500 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
+                ? "bg-gray-500 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700 text-white"
                 }`}
             >
               {isLoading ? "Translating..." : "Translate"}
             </button>
           </div>
+
+          {lastTokenUsage && (
+            <TokenUsage tokenUsage={lastTokenUsage} className="mt-4 p-3 border rounded-lg" />
+          )}
         </form>
       )}
     </div>

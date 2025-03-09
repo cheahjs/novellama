@@ -94,7 +94,7 @@ export async function truncateContext(
     const tokenCount = await countMessagesTokens(testChunks);
     if (tokenCount <= maxTokens) {
       result.splice(1, 0, translationMessages[i - 1], translationMessages[i]);
-      totalTokenCount += tokenCount;
+      totalTokenCount = tokenCount;
     } else {
       break;
     }

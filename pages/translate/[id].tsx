@@ -122,9 +122,11 @@ export default function TranslatePage() {
       }
 
       toast.success('Translation complete');
+      return result;
     } catch (error: unknown) {
       console.error('Translation error:', error);
       toast.error('Failed to translate content');
+      throw error;
     } finally {
       setIsLoading(false);
     }
