@@ -79,6 +79,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       const result = await onTranslate(sourceContent);
       if (result) {
         setLastTokenUsage(result.tokenUsage);
+        setShowSource(false); // Switch to showing translated content
       }
       setSourceContent("");
       setIsRetranslating(false);
@@ -114,15 +115,15 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               }}
               className="flex items-center text-sm text-gray-500 hover:text-gray-700"
             >
-              {isEditing ? (
+                {!showSource && (isEditing ? (
                 <>
                   <FiSave className="mr-1" /> Save changes
                 </>
-              ) : (
+                ) : (
                 <>
                   <FiEdit className="mr-1" /> Edit translation
                 </>
-              )}
+                ))}
             </button>
             <button
               type="button"

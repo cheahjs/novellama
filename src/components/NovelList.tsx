@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { Novel } from '@/types';
-import { FiBook, FiEdit, FiTrash } from 'react-icons/fi';
+import { FiBook, FiEdit, FiTrash, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 
 interface NovelListProps {
   novels: Novel[];
@@ -9,6 +9,8 @@ interface NovelListProps {
 }
 
 const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
+  const [expandedNovel, setExpandedNovel] = useState<string | null>(null);
+
   if (!novels || novels.length === 0) {
     return (
       <div className="text-center py-10">
@@ -29,17 +31,41 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
           <div className="text-sm text-gray-500">
             {novel.chapters?.length || 0} chapters translated
           </div>
-          <div className="mt-4 flex justify-between">
+          <div className="mt-4 flex justify-between items-center">
             <Link href={`/translate/${novel.id}`} className="text-blue-600 hover:underline flex items-center">
               <FiEdit className="mr-1" /> Continue
             </Link>
-            <button 
-              onClick={() => onDelete(novel.id)}
-              className="text-red-600 hover:text-red-800 flex items-center"
-            >
-              <FiTrash className="mr-1" /> Delete
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setExpandedNovel(expandedNovel === novel.id ? null : novel.id)}
+                className="text-gray-600 hover:text-gray-800 flex items-center"
+              >
+                {expandedNovel === novel.id ? <FiChevronUp /> : <FiChevronDown />}
+              </button>
+              <button 
+                onClick={() => onDelete(novel.id)}
+                className="text-red-600 hover:text-red-800 flex items-center"
+              >
+                <FiTrash className="mr-1" /> Delete
+              </button>
+            </div>
           </div>
+          {expandedNovel === novel.id && novel.chapters && novel.chapters.length > 0 && (
+            <div className="mt-4 border-t pt-4">
+              <h4 className="text-sm font-semibold mb-2">Chapters</h4>
+              <div className="max-h-48 overflow-y-auto">
+                {novel.chapters.map((chapter, index) => (
+                  <Link
+                    key={index}
+                    href={`/translate/${novel.id}/${index+1}`}
+                    className="block py-1 text-sm text-gray-600 hover:text-blue-600"
+                  >
+                    {chapter.title ? `${index + 1}: ${chapter.title}` : `Chapter ${index + 1}`}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ))}
     </div>
