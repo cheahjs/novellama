@@ -51,11 +51,18 @@ export default async function handler(
     })
     
     return res.status(200).json({ translation, tokenUsage });
-  } catch (error: any) {
-    console.error('API error:', error.response?.data || error.message);
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      console.error('API error:', error.response?.data || error.message);
+      return res.status(500).json({ 
+        message: 'Error processing translation',
+        error: error.message
+      });
+    }
+    const message = error instanceof Error ? error.message : `${error}`;
     return res.status(500).json({ 
       message: 'Error processing translation',
-      error: error.message
+      error: message
     });
   }
 }

@@ -10,7 +10,7 @@ interface TranslationEditorProps {
   novel: Novel;
   currentChapter: TranslationChapter | null;
   currentChapterNumber: number;
-  onTranslate: (sourceContent: string) => Promise<TranslationResponse>;
+  onTranslate: (sourceContent: string) => Promise<TranslationResponse | undefined>;
   isLoading: boolean;
 }
 
@@ -26,7 +26,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [showSource, setShowSource] = useState<boolean>(false);
   const [isScrapingChapter, setIsScrapingChapter] = useState<boolean>(false);
   const [isRetranslating, setIsRetranslating] = useState<boolean>(false);
-  const [lastTokenUsage, setLastTokenUsage] = useState<TranslationResponse['tokenUsage']>(null);
+  const [lastTokenUsage, setLastTokenUsage] = useState<TranslationResponse['tokenUsage']>();
 
   useEffect(() => {
     if (currentChapter) {
@@ -70,7 +70,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     e.preventDefault();
     if (sourceContent.trim() && !isScrapingChapter && !isLoading) {
       const result = await onTranslate(sourceContent);
-      setLastTokenUsage(result.tokenUsage);
+      if (result) {
+        setLastTokenUsage(result.tokenUsage);
+      }
       setSourceContent("");
       setIsRetranslating(false);
     }

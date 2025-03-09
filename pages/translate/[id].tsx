@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -22,7 +22,7 @@ export default function TranslatePage() {
   const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
 
-  const loadNovel = async (novelId?: string) => {
+  const loadNovel = useCallback(async (novelId?: string) => {
     if (!novelId) return;
 
     try {
@@ -49,13 +49,13 @@ export default function TranslatePage() {
     } finally {
       setIsLoadingNovel(false);
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     if (id && typeof id === 'string') {
       loadNovel(id);
     }
-  }, [id]);
+  }, [id, loadNovel]);
 
   const handleTranslate = async (sourceContent: string) => {
     if (!novel) return;
@@ -122,13 +122,13 @@ export default function TranslatePage() {
       }
 
       toast.success('Translation complete');
+      setIsLoading(false);
       return result;
     } catch (error: unknown) {
       console.error('Translation error:', error);
       toast.error('Failed to translate content');
-      throw error;
-    } finally {
       setIsLoading(false);
+      throw error;
     }
   };
 
