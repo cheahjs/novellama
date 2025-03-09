@@ -25,6 +25,7 @@ const TOKENIZER_MODEL =
   process.env.NEXT_PUBLIC_TOKENIZER_MODEL || "Xenova/gpt-4o";
 
 // Debounce helper function
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const debounce = <T extends (...args: any[]) => void>(
   func: T,
   wait: number
@@ -182,7 +183,7 @@ export function useTokenizer(
     // Cleanup the previous debounced function
     return () => {
       if (debouncedCountRef.current) {
-        // @ts-ignore - TypeScript doesn't know about the internal timer
+        // @ts-expect-error - TypeScript doesn't know about the internal timer
         clearTimeout(debouncedCountRef.current.timer);
       }
     };

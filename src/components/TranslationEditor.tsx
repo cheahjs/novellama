@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiEye, FiEyeOff, FiRefreshCw, FiDownload } from "react-icons/fi";
+import { FiEye, FiEyeOff, FiRefreshCw, FiDownload, FiEdit, FiSave } from "react-icons/fi";
 import { TranslationChapter, Novel, TranslationResponse } from "@/types";
 import LiveTokenCounter from "./LiveTokenCounter";
 import ReactMarkdown from 'react-markdown';
@@ -11,6 +11,7 @@ interface TranslationEditorProps {
   currentChapter: TranslationChapter | null;
   currentChapterNumber: number;
   onTranslate: (sourceContent: string) => Promise<TranslationResponse | undefined>;
+  onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -19,6 +20,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   currentChapter,
   currentChapterNumber,
   onTranslate,
+  onSaveEdit,
   isLoading,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -27,6 +29,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [isScrapingChapter, setIsScrapingChapter] = useState<boolean>(false);
   const [isRetranslating, setIsRetranslating] = useState<boolean>(false);
   const [lastTokenUsage, setLastTokenUsage] = useState<TranslationResponse['tokenUsage']>();
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [editTitle, setEditTitle] = useState<string>("");
+  const [editContent, setEditContent] = useState<string>("");
 
   useEffect(() => {
     if (currentChapter) {
@@ -35,6 +40,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       } else {
         setSourceContent("");
       }
+      setEditTitle(currentChapter.title);
+      setEditContent(currentChapter.translatedContent);
     }
   }, [currentChapter, isRetranslating]);
 
@@ -94,7 +101,29 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     <div className="mt-6 space-y-4">
       {currentChapter ? (
         <div className="rounded-lg border p-4">
-          <div className="flex justify-end items-center mb-2">
+          <div className="flex justify-end items-center gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (isEditing && onSaveEdit) {
+                  onSaveEdit(editTitle, editContent)
+                    .then(() => setIsEditing(false));
+                } else {
+                  setIsEditing(!isEditing);
+                }
+              }}
+              className="flex items-center text-sm text-gray-500 hover:text-gray-700"
+            >
+              {isEditing ? (
+                <>
+                  <FiSave className="mr-1" /> Save changes
+                </>
+              ) : (
+                <>
+                  <FiEdit className="mr-1" /> Edit translation
+                </>
+              )}
+            </button>
             <button
               type="button"
               onClick={() => setShowSource(!showSource)}
@@ -128,9 +157,30 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             </div>
           )}
 
-          {!showSource && (
+          {!showSource && !isEditing && (
             <div className="prose prose-invert max-w-none translation-content">
               <ReactMarkdown remarkPlugins={[remarkBreaks]}>{currentChapter.translatedContent}</ReactMarkdown>
+            </div>
+          )}
+          {!showSource && isEditing && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-200 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-800 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-200 mb-1">Content</label>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full h-96 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-800 text-white font-mono"
+                />
+              </div>
             </div>
           )}
         </div>

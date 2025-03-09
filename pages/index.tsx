@@ -19,6 +19,7 @@ export default function Home() {
         setNovels(loadedNovels);
       } catch (error) {
         toast.error('Failed to load novels');
+        console.error('Error loading novels:', error);
       } finally {
         setIsLoading(false);
       }
@@ -35,6 +36,7 @@ export default function Home() {
         toast.success('Novel deleted successfully');
       } catch (error) {
         toast.error('Failed to delete novel');
+        console.error('Error deleting novel:', error);
       }
     }
   };

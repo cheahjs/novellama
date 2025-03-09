@@ -57,6 +57,38 @@ export default function TranslatePage() {
     }
   }, [id, loadNovel]);
 
+  const handleSaveEdit = async (title: string, translatedContent: string) => {
+    if (!novel || !currentChapter) return;
+
+    try {
+      // Create updated chapter object
+      const updatedChapter: TranslationChapter = {
+        ...currentChapter,
+        title,
+        translatedContent,
+        updatedAt: Date.now()
+      };
+
+      // Create new chapters array with updated chapter
+      const updatedChapters = [...(novel.chapters || [])];
+      updatedChapters[currentChapterIndex] = updatedChapter;
+
+      // Update the novel with the modified chapter
+      const updatedNovel = {
+        ...novel,
+        chapters: updatedChapters,
+        updatedAt: Date.now()
+      };
+
+      await saveNovel(updatedNovel);
+      setNovel(updatedNovel);
+      toast.success('Changes saved successfully');
+    } catch (error) {
+      console.error('Failed to save changes:', error);
+      toast.error('Failed to save changes');
+    }
+  };
+
   const handleTranslate = async (sourceContent: string) => {
     if (!novel) return;
 
@@ -233,6 +265,7 @@ export default function TranslatePage() {
           currentChapter={currentChapter}
           currentChapterNumber={currentChapterNumber}
           onTranslate={handleTranslate}
+          onSaveEdit={handleSaveEdit}
           isLoading={isLoading}
         />
 

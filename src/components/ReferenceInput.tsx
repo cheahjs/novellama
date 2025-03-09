@@ -46,6 +46,7 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
         setUrl('');
       } catch (error) {
         toast.error('Failed to scrape the webpage. Please try again or use text input.');
+        console.error('Error scraping webpage:', error);
       } finally {
         setIsLoading(false);
       }

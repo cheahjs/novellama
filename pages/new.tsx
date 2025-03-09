@@ -3,7 +3,6 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { FiSave, FiArrowLeft } from 'react-icons/fi';
 import { Novel } from '@/types';
-import { saveNovel } from '@/services/storage';
 import Link from 'next/link';
 import { toast, Toaster } from 'react-hot-toast';
 import axios from 'axios';
@@ -16,7 +15,6 @@ export default function NewNovel() {
     sourceLanguage: '',
     targetLanguage: '',
     systemPrompt: 'You are a skilled literary translator. Translate the following text from the source language to the target language. Maintain the tone, style, and cultural nuances where possible. Use appropriate idiomatic expressions in the target language.',
-    references: ''
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -34,7 +32,7 @@ export default function NewNovel() {
         sourceLanguage: formData.sourceLanguage,
         targetLanguage: formData.targetLanguage,
         systemPrompt: formData.systemPrompt,
-        references: formData.references.split('\n').filter(line => line.trim()),
+        references: undefined,
       };
       
       const response = await axios.post('/api/novels', newNovel);
@@ -119,19 +117,6 @@ export default function NewNovel() {
               rows={4}
               className="w-full p-2 border rounded"
               placeholder="Instructions for translation style and guidelines..."
-              disabled={isSubmitting}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">References (one per line)</label>
-            <textarea
-              name="references"
-              value={formData.references}
-              onChange={handleChange}
-              rows={4}
-              className="w-full p-2 border rounded"
-              placeholder="Enter reference texts or URLs, one per line..."
               disabled={isSubmitting}
             />
           </div>
