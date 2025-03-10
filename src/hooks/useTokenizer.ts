@@ -73,7 +73,7 @@ export function useTokenizer(
   }, []);
 
   // Store the debounced function in a ref so it persists across renders
-  const debouncedCountRef = useRef<(text: string) => void>();
+  const debouncedCountRef = useRef<(text: string) => void | undefined>(undefined);
 
   useEffect(() => {
     // Initialize worker if it doesn't exist
