@@ -25,7 +25,7 @@ export const translateContent = async (
         .map((chapter) => [
           {
             role: "user",
-            content: `Translate the following text from ${request.sourceLanguage} to ${request.targetLanguage}:\n\n${chapter.sourceContent}`,
+            content: `${chapter.sourceContent}`,
           },
           {
             role: "assistant",
@@ -39,12 +39,16 @@ export const translateContent = async (
     const messages = [
       {
         role: "system",
-        content: `${request.systemPrompt}\n\n${referencesText}`,
+        content: `${request.systemPrompt}`,
+      },
+      {
+        role: "user",
+        content: `${referencesText}\n\nYou may be provided examples of previous translations. Use them to help with the translation.`,
       },
       ...context,
       {
         role: "user",
-        content: `Translate the following text from ${request.sourceLanguage} to ${request.targetLanguage}:\n\n${request.sourceContent}`,
+        content: `Translate the following text from ${request.sourceLanguage} to ${request.targetLanguage}. Make sure to preserve and translate the header.\n\n${request.sourceContent}`,
       },
     ];
 

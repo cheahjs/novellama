@@ -65,9 +65,10 @@ export async function truncateContext(
   // Start with system and task messages
   const result = [
     messages[0], // System prompt
+    messages[1], // References
     messages[messages.length - 1], // Task
   ];
-  const systemTokenCount = await countMessagesTokens([messages[0]]);
+  const systemTokenCount = await countMessagesTokens([messages[0], messages[1]]);
   const taskTokenCount = await countMessagesTokens([
     messages[messages.length - 1],
   ]);
@@ -77,7 +78,7 @@ export async function truncateContext(
   }
 
   // Get the translation messages
-  const translationMessages = messages.slice(1, -1);
+  const translationMessages = messages.slice(2, -1);
 
   // Add translation messages in pairs from most recent until we hit token limit
   assert(
