@@ -5,6 +5,7 @@ import LiveTokenCounter from "./LiveTokenCounter";
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import TokenUsage from "./TokenUsage";
+import QualityIndicator from "./QualityIndicator";
 
 interface TranslationEditorProps {
   novel: Novel;
@@ -33,6 +34,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [isScrapingChapter, setIsScrapingChapter] = useState<boolean>(false);
   const [isRetranslating, setIsRetranslating] = useState<boolean>(false);
   const [lastTokenUsage, setLastTokenUsage] = useState<TranslationResponse['tokenUsage']>();
+  const [lastQualityCheck, setLastQualityCheck] = useState<TranslationResponse['qualityCheck']>();
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editTitle, setEditTitle] = useState<string>("");
   const [editContent, setEditContent] = useState<string>("");
@@ -84,6 +86,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       const result = await onTranslate(sourceContent);
       if (result) {
         setLastTokenUsage(result.tokenUsage);
+        setLastQualityCheck(result.qualityCheck);
         setShowSource(false); // Switch to showing translated content
       }
       setSourceContent("");
@@ -107,44 +110,51 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     <div className="mt-6 space-y-4">
       {currentChapter ? (
         <div className="rounded-lg border p-4">
-          <div className="flex justify-end items-center gap-2 mb-2">
-            <button
-              type="button"
-              onClick={() => {
-                if (isEditing && onSaveEdit) {
-                  onSaveEdit(editTitle, editContent)
-                    .then(() => setIsEditing(false));
-                } else {
-                  setIsEditing(!isEditing);
-                }
-              }}
-              className="flex items-center text-sm text-gray-500 hover:text-gray-700"
-            >
-                {!showSource && (isEditing ? (
-                <>
-                  <FiSave className="mr-1" /> Save changes
-                </>
-                ) : (
-                <>
-                  <FiEdit className="mr-1" /> Edit translation
-                </>
-                ))}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSource(!showSource)}
-              className="flex items-center text-sm text-gray-500 hover:text-gray-700"
-            >
-              {showSource ? (
-                <>
-                  <FiEyeOff className="mr-1" /> Hide source
-                </>
-              ) : (
-                <>
-                  <FiEye className="mr-1" /> Show source
-                </>
+          <div className="flex justify-between items-center gap-2 mb-2">
+            <div>
+              {lastQualityCheck && (
+                <QualityIndicator qualityCheck={lastQualityCheck} />
               )}
-            </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isEditing && onSaveEdit) {
+                    onSaveEdit(editTitle, editContent)
+                      .then(() => setIsEditing(false));
+                  } else {
+                    setIsEditing(!isEditing);
+                  }
+                }}
+                className="flex items-center text-sm text-gray-500 hover:text-gray-700"
+              >
+                  {!showSource && (isEditing ? (
+                  <>
+                    <FiSave className="mr-1" /> Save changes
+                  </>
+                  ) : (
+                  <>
+                    <FiEdit className="mr-1" /> Edit translation
+                  </>
+                  ))}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSource(!showSource)}
+                className="flex items-center text-sm text-gray-500 hover:text-gray-700"
+              >
+                {showSource ? (
+                  <>
+                    <FiEyeOff className="mr-1" /> Hide source
+                  </>
+                ) : (
+                  <>
+                    <FiEye className="mr-1" /> Show source
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {showSource && (
@@ -276,6 +286,13 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
           {lastTokenUsage && (
             <TokenUsage tokenUsage={lastTokenUsage} className="mt-4 p-3 border rounded-lg" />
+          )}
+          
+          {lastQualityCheck && (
+            <QualityIndicator 
+              qualityCheck={lastQualityCheck} 
+              className="mt-4 p-3 border rounded-lg"
+            />
           )}
         </form>
       )}

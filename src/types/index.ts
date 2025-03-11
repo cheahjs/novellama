@@ -41,11 +41,16 @@ export interface TranslationRequest {
 
 export interface TranslationResponse {
   translatedContent: string;
-  tokenUsage?: {
+  tokenUsage: {
     native_prompt: number;
     native_completion: number;
     system: number;
     task: number;
     translation: number;
+  };
+  qualityCheck?: {
+    isGoodQuality: boolean;
+    score: number;
+    feedback: string;
   };
 }

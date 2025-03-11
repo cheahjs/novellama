@@ -2,6 +2,12 @@ import axios from "axios";
 import { TranslationRequest, TranslationResponse } from "@/types";
 import { truncateContext } from "@/utils/tokenizer";
 
+export interface QualityCheckResponse {
+  isGoodQuality: boolean;
+  score: number;
+  feedback: string;
+}
+
 export const translateContent = async (
   request: TranslationRequest
 ): Promise<TranslationResponse> => {
@@ -75,8 +81,18 @@ export const translateContent = async (
       messages: truncatedMessages,
     });
 
+    const translatedContent = response.data.translation;
+
+    // Perform quality check
+    const qualityCheckResponse = await checkTranslationQuality({
+      sourceContent: request.sourceContent,
+      translatedContent,
+      sourceLanguage: request.sourceLanguage,
+      targetLanguage: request.targetLanguage,
+    });
+
     return {
-      translatedContent: response.data.translation,
+      translatedContent,
       tokenUsage: {
         native_prompt: response.data.tokenUsage.prompt_tokens,
         native_completion: response.data.tokenUsage.completion_tokens,
@@ -84,9 +100,40 @@ export const translateContent = async (
         task: tokenCounts.task,
         translation: tokenCounts.translation,
       },
+      qualityCheck: qualityCheckResponse,
     };
   } catch (error) {
     console.error("Translation error:", error);
     throw new Error("Failed to translate content");
+  }
+};
+
+export const checkTranslationQuality = async ({
+  sourceContent,
+  translatedContent,
+  sourceLanguage,
+  targetLanguage,
+}: {
+  sourceContent: string;
+  translatedContent: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+}): Promise<QualityCheckResponse> => {
+  try {
+    const response = await axios.post('/api/quality-check', {
+      sourceContent,
+      translatedContent,
+      sourceLanguage,
+      targetLanguage,
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error("Quality check error:", error);
+    return {
+      isGoodQuality: true, // Default to true to not block the flow
+      score: 0,
+      feedback: "Quality check failed. Please review manually.",
+    };
   }
 };
