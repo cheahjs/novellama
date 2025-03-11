@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FiChevronLeft, FiChevronRight, FiPlus, FiList } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiPlus, FiList, FiTrash2 } from 'react-icons/fi';
 import { TranslationChapter } from '@/types';
 
 interface ChapterNavigationProps {
@@ -7,6 +7,7 @@ interface ChapterNavigationProps {
   totalChapters: number;
   onNavigate: (index: number) => void;
   chapters: TranslationChapter[];
+  onDeleteLatest?: () => void;
 }
 
 const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
@@ -14,6 +15,7 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
   totalChapters,
   onNavigate,
   chapters,
+  onDeleteLatest,
 }) => {
   const [showTOC, setShowTOC] = useState(false);
 
@@ -92,13 +94,24 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
         )}
       </div>
 
-      <button
-        onClick={handleNext}
-        className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-700"
-      >
-        <span>{currentIndex >= totalChapters - 1 ? 'New Chapter' : 'Next Chapter'}</span>
-        {currentIndex >= totalChapters - 1 ? <FiPlus className="w-5 h-5" /> : <FiChevronRight className="w-5 h-5" />}
-      </button>
+      <div className="flex items-center gap-2">
+        {onDeleteLatest && currentIndex === totalChapters - 1 && totalChapters > 0 && (
+          <button
+            onClick={onDeleteLatest}
+            className="flex items-center space-x-2 px-4 py-2 rounded-lg text-red-400 hover:bg-red-900/50"
+            title="Delete latest chapter"
+          >
+            <FiTrash2 className="w-5 h-5" />
+          </button>
+        )}
+        <button
+          onClick={handleNext}
+          className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-700"
+        >
+          <span>{currentIndex >= totalChapters - 1 ? 'New Chapter' : 'Next Chapter'}</span>
+          {currentIndex >= totalChapters - 1 ? <FiPlus className="w-5 h-5" /> : <FiChevronRight className="w-5 h-5" />}
+        </button>
+      </div>
     </div>
   );
 };

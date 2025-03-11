@@ -233,6 +233,35 @@ export default function TranslatePage() {
     }
   };
 
+  const handleDeleteLatest = async () => {
+    if (!novel || !novel.chapters || novel.chapters.length === 0) return;
+
+    if (!confirm('Are you sure you want to delete the latest chapter? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const updatedChapters = novel.chapters.slice(0, -1);
+      const updatedNovel = {
+        ...novel,
+        chapters: updatedChapters,
+        updatedAt: Date.now()
+      };
+
+      await saveNovel(updatedNovel);
+      setNovel(updatedNovel);
+      
+      // Navigate to the new latest chapter
+      const newIndex = Math.max(0, updatedChapters.length - 1);
+      handleNavigate(newIndex);
+      
+      toast.success('Chapter deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete chapter:', error);
+      toast.error('Failed to delete chapter');
+    }
+  };
+
   const updateNovelSettings = async (updatedSettings: Partial<Novel>) => {
     if (novel) {
       try {
@@ -308,6 +337,7 @@ export default function TranslatePage() {
           totalChapters={novel.chapters?.length || 0}
           onNavigate={handleNavigate}
           chapters={novel.chapters || []}
+          onDeleteLatest={handleDeleteLatest}
         />
 
         <TranslationEditor
@@ -326,6 +356,7 @@ export default function TranslatePage() {
           totalChapters={novel.chapters?.length || 0}
           onNavigate={handleNavigate}
           chapters={novel.chapters || []}
+          onDeleteLatest={handleDeleteLatest}
         />
 
         <NovelSettings
