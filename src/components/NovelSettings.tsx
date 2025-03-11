@@ -24,7 +24,8 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     targetLanguage: novel.targetLanguage,
     systemPrompt: novel.systemPrompt,
     sourceUrl: novel.sourceUrl,
-    references: novel.references
+    references: novel.references,
+    translationTemplate: novel.translationTemplate || 'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.\n\n${sourceContent}'
   });
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -127,7 +128,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
               value={formData.sourceUrl}
               onChange={handleChange}
               className="w-full p-2 border rounded"
-              placeholder="https://ncode.syosetu.com/nxxxxxxx"
+              placeholder="https://ncode.syosetu.com/nxxxxxxx/"
               pattern="https://ncode\.syosetu\.com/n[a-z0-9]+/?$"
               title="Please enter a valid syosetu.com novel URL"
               required
@@ -149,6 +150,26 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
                 <LiveTokenCounter text={formData.systemPrompt} className="bg-gray-800 px-2 py-1 rounded" />
               </div>
             </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Translation Template</label>
+            <div className="relative">
+              <textarea
+                name="translationTemplate"
+                value={formData.translationTemplate}
+                onChange={handleChange}
+                rows={4}
+                className="w-full p-2 border rounded"
+                placeholder="Template for translation instruction..."
+              />
+              <div className="absolute top-2 right-2">
+                <LiveTokenCounter text={formData.translationTemplate} className="bg-gray-800 px-2 py-1 rounded" />
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              Available variables: ${'{sourceLanguage}'}, ${'{targetLanguage}'}, ${'{sourceContent}'}
+            </p>
           </div>
           
           <div>

@@ -35,6 +35,14 @@ export const translateContent = async (
         .flat();
     }
 
+    const translationTemplate = request.translationTemplate || 
+      'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.\n\n${sourceContent}';
+
+    const translationInstruction = translationTemplate
+      .replace('${sourceLanguage}', request.sourceLanguage)
+      .replace('${targetLanguage}', request.targetLanguage)
+      .replace('${sourceContent}', request.sourceContent);
+
     // Create messages for the API call
     const messages = [
       {
@@ -48,7 +56,7 @@ export const translateContent = async (
       ...context,
       {
         role: "user",
-        content: `Translate the following text from ${request.sourceLanguage} to ${request.targetLanguage}. Make sure to preserve and translate the header.\n\n${request.sourceContent}`,
+        content: translationInstruction,
       },
     ];
 

@@ -26,6 +26,7 @@ export interface Novel {
   chapters: TranslationChapter[];
   createdAt: number;
   updatedAt: number;
+  translationTemplate?: string;
 }
 
 export interface TranslationRequest {
@@ -35,6 +36,7 @@ export interface TranslationRequest {
   previousChapters?: TranslationChapter[];
   systemPrompt: string;
   references: Reference[];
+  translationTemplate?: string;
 }
 
 export interface TranslationResponse {
