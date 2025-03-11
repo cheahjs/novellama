@@ -93,7 +93,7 @@ export default function TranslatePage() {
     }
   };
 
-  const handleTranslate = async (sourceContent: string) => {
+  const handleTranslate = async (sourceContent: string, previousTranslationData?: { previousTranslation?: string, qualityFeedback?: string }) => {
     if (!novel) return;
 
     setIsLoading(true);
@@ -109,7 +109,8 @@ export default function TranslatePage() {
         targetLanguage: novel.targetLanguage,
         systemPrompt: novel.systemPrompt,
         references: novel.references,
-        previousChapters: previousChapters
+        previousChapters: previousChapters,
+        ...previousTranslationData // Spread the optional previous translation data
       });
       const translatedLines = result.translatedContent.split('\n');
       const title = translatedLines[0].startsWith('# ') ? translatedLines[0].substring(2) : `Chapter ${novel.chapters?.length ? novel.chapters.length + 1 : 1}`;

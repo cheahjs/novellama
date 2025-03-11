@@ -68,7 +68,7 @@ export async function truncateContext(
   const taskTokenCount = await countMessagesTokens([messages[messages.length - 1]]);
 
   if (systemTokenCount + taskTokenCount > maxTokens) {
-    throw new Error("System and task token count is greater than max tokens");
+    throw new Error(`System and task token count is greater than max tokens (${systemTokenCount} + ${taskTokenCount} > ${maxTokens})`);
   }
 
   // Get the translation messages

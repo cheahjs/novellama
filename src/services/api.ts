@@ -35,13 +35,20 @@ export const translateContent = async (
         .flat();
     }
 
+    // Build improvement context when retranslating with previous translation and feedback
+    let improvementPrompt = '';
+    if (request.previousTranslation && request.qualityFeedback) {
+      improvementPrompt = `\n\nHere is a previous translation attempt with quality feedback. Please improve upon this translation addressing the issues mentioned:\n\nPrevious translation:\n${request.previousTranslation}\n\nQuality feedback:\n${request.qualityFeedback}`;
+    }
+
     const translationTemplate = request.translationTemplate || 
-      'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.\n\n${sourceContent}';
+      'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.${improvementPrompt}\n\n${sourceContent}';
 
     const translationInstruction = translationTemplate
       .replace('${sourceLanguage}', request.sourceLanguage)
       .replace('${targetLanguage}', request.targetLanguage)
-      .replace('${sourceContent}', request.sourceContent);
+      .replace('${sourceContent}', request.sourceContent)
+      .replace('${improvementPrompt}', improvementPrompt);
 
     // Create messages for the API call
     const messages = [

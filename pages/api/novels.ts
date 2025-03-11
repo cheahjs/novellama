@@ -3,6 +3,14 @@ import { Novel } from '@/types';
 import { readNovels, getNovelById, saveNovel, deleteNovel } from '@/utils/fileStorage';
 import { nanoid } from 'nanoid';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '100mb',
+    },
+  },
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse

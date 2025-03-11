@@ -11,7 +11,7 @@ interface TranslationEditorProps {
   novel: Novel;
   currentChapter: TranslationChapter | null;
   currentChapterNumber: number;
-  onTranslate: (sourceContent: string) => Promise<TranslationResponse | undefined>;
+  onTranslate: (sourceContent: string, previousTranslationData?: { previousTranslation: string, qualityFeedback: string }) => Promise<TranslationResponse | undefined>;
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
   isLoading: boolean;
   onBatchTranslate?: (count: number) => Promise<void>;
@@ -90,7 +90,15 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sourceContent.trim() && !isScrapingChapter && !isLoading) {
-      const result = await onTranslate(sourceContent);
+      // If retranslating with a quality check, pass the previous translation and feedback
+      const previousTranslationData = isRetranslating && currentChapter?.qualityCheck
+        ? {
+          previousTranslation: currentChapter.translatedContent,
+          qualityFeedback: currentChapter.qualityCheck.feedback
+        }
+        : undefined;
+
+      const result = await onTranslate(sourceContent, previousTranslationData);
       if (result) {
         setLastTokenUsage(result.tokenUsage);
         setLastQualityCheck(result.qualityCheck);

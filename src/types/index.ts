@@ -38,6 +38,8 @@ export interface TranslationRequest {
   systemPrompt: string;
   references: Reference[];
   translationTemplate?: string;
+  previousTranslation?: string;
+  qualityFeedback?: string;
 }
 
 export interface TranslationResponse {
