@@ -6,6 +6,7 @@ export interface TranslationChapter {
   number: number;
   createdAt: number;
   updatedAt: number;
+  qualityCheck?: QualityCheckResponse;
 }
 
 export interface Reference {
@@ -48,9 +49,11 @@ export interface TranslationResponse {
     task: number;
     translation: number;
   };
-  qualityCheck?: {
-    isGoodQuality: boolean;
-    score: number;
-    feedback: string;
-  };
+  qualityCheck?: QualityCheckResponse;
+}
+
+export interface QualityCheckResponse {
+  isGoodQuality: boolean;
+  score: number;
+  feedback: string;
 }

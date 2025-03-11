@@ -1,17 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
+import { QualityCheckResponse } from "@/types";
 
 interface QualityCheckRequest {
   sourceContent: string;
   translatedContent: string;
   sourceLanguage: string;
   targetLanguage: string;
-}
-
-interface QualityCheckResponse {
-  isGoodQuality: boolean;
-  score: number;
-  feedback: string;
 }
 
 export default async function handler(

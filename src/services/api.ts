@@ -1,12 +1,6 @@
 import axios from "axios";
-import { TranslationRequest, TranslationResponse } from "@/types";
+import { QualityCheckResponse, TranslationRequest, TranslationResponse } from "@/types";
 import { truncateContext } from "@/utils/tokenizer";
-
-export interface QualityCheckResponse {
-  isGoodQuality: boolean;
-  score: number;
-  feedback: string;
-}
 
 export const translateContent = async (
   request: TranslationRequest

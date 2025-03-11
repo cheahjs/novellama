@@ -49,6 +49,13 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       }
       setEditTitle(currentChapter.title);
       setEditContent(currentChapter.translatedContent);
+
+      // Set the quality check from the current chapter if available
+      if (currentChapter.qualityCheck) {
+        setLastQualityCheck(currentChapter.qualityCheck);
+      } else {
+        setLastQualityCheck(undefined);
+      }
     }
   }, [currentChapter, isRetranslating]);
 
@@ -112,8 +119,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         <div className="rounded-lg border p-4">
           <div className="flex justify-between items-center gap-2 mb-2">
             <div>
-              {lastQualityCheck && (
-                <QualityIndicator qualityCheck={lastQualityCheck} />
+              {/* Only show quality indicator if we have a current chapter with quality data */}
+              {currentChapter.qualityCheck && (
+                <QualityIndicator qualityCheck={currentChapter.qualityCheck} />
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -129,15 +137,15 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                 }}
                 className="flex items-center text-sm text-gray-500 hover:text-gray-700"
               >
-                  {!showSource && (isEditing ? (
+                {!showSource && (isEditing ? (
                   <>
                     <FiSave className="mr-1" /> Save changes
                   </>
-                  ) : (
+                ) : (
                   <>
                     <FiEdit className="mr-1" /> Edit translation
                   </>
-                  ))}
+                ))}
               </button>
               <button
                 type="button"
@@ -271,11 +279,10 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   type="button"
                   onClick={() => onBatchTranslate(batchCount)}
                   disabled={isBatchTranslating || isLoading}
-                  className={`py-2 px-4 rounded-md flex items-center ${
-                    isBatchTranslating || isLoading
-                      ? "bg-gray-500 cursor-not-allowed"
-                      : "bg-purple-600 hover:bg-purple-700 text-white"
-                  }`}
+                  className={`py-2 px-4 rounded-md flex items-center ${isBatchTranslating || isLoading
+                    ? "bg-gray-500 cursor-not-allowed"
+                    : "bg-purple-600 hover:bg-purple-700 text-white"
+                    }`}
                 >
                   <FiPlayCircle className="mr-2" />
                   {isBatchTranslating ? "Processing..." : "Batch Translate"}
@@ -287,10 +294,11 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           {lastTokenUsage && (
             <TokenUsage tokenUsage={lastTokenUsage} className="mt-4 p-3 border rounded-lg" />
           )}
-          
-          {lastQualityCheck && (
-            <QualityIndicator 
-              qualityCheck={lastQualityCheck} 
+
+          {/* Only show quality indicator after translation */}
+          {lastQualityCheck && isRetranslating && (
+            <QualityIndicator
+              qualityCheck={lastQualityCheck}
               className="mt-4 p-3 border rounded-lg"
             />
           )}

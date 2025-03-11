@@ -1,12 +1,9 @@
+import { QualityCheckResponse } from '@/types';
 import React, { useState, useRef } from 'react';
 import { FiAlertTriangle, FiCheckCircle, FiInfo } from 'react-icons/fi';
 
 interface QualityIndicatorProps {
-    qualityCheck: {
-        isGoodQuality: boolean;
-        score: number;
-        feedback: string;
-    };
+    qualityCheck?: QualityCheckResponse;
     className?: string;
 }
 
@@ -16,7 +13,7 @@ const QualityIndicator: React.FC<QualityIndicatorProps> = ({ qualityCheck, class
 
     if (!qualityCheck) return null;
 
-    const { isGoodQuality, score, feedback } = qualityCheck;
+    const { score, feedback } = qualityCheck;
 
     let color = '';
     let icon = null;

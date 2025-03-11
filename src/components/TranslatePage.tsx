@@ -122,7 +122,8 @@ export default function TranslatePage() {
           title,
           sourceContent,
           translatedContent: result.translatedContent,
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
+          qualityCheck: result.qualityCheck
         };
 
         // Create new chapters array with updated chapter
@@ -148,7 +149,8 @@ export default function TranslatePage() {
           translatedContent: result.translatedContent,
           number: chapterNumber,
           createdAt: Date.now(),
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
+          qualityCheck: result.qualityCheck
         };
 
         // Update the novel with the new chapter
