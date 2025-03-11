@@ -55,23 +55,17 @@ export async function truncateContext(
   if (messages.length === 0)
     return {
       messages: [],
-      tokenCounts: {
-        system: 0,
-        task: 0,
-        translation: 0,
-      },
+      tokenCounts: { system: 0, task: 0, translation: 0 },
     };
 
   // Start with system and task messages
-  const result = [
+  const baseMessages = [
     messages[0], // System prompt
     messages[1], // References
     messages[messages.length - 1], // Task
   ];
   const systemTokenCount = await countMessagesTokens([messages[0], messages[1]]);
-  const taskTokenCount = await countMessagesTokens([
-    messages[messages.length - 1],
-  ]);
+  const taskTokenCount = await countMessagesTokens([messages[messages.length - 1]]);
 
   if (systemTokenCount + taskTokenCount > maxTokens) {
     throw new Error("System and task token count is greater than max tokens");
@@ -79,36 +73,50 @@ export async function truncateContext(
 
   // Get the translation messages
   const translationMessages = messages.slice(2, -1);
+  assert(translationMessages.length % 2 === 0, "Translation messages must be in pairs");
+  const pairs = translationMessages.length / 2;
 
-  // Add translation messages in pairs from most recent until we hit token limit
-  assert(
-    translationMessages.length % 2 === 0,
-    "Translation messages must be in pairs"
-  );
-  let totalTokenCount = 0;
-  for (let i = translationMessages.length - 1; i >= 0; i -= 2) {
-    const testChunks = [
-      ...result,
-      translationMessages[i - 1],
-      translationMessages[i],
+  // Binary search for the maximum number of pairs that fit
+  let left = 0;
+  let right = pairs;
+  let bestCount = 0;
+  let bestTokenCount = systemTokenCount + taskTokenCount;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    const pairCount = mid;
+    const testMessages = [
+      ...baseMessages,
+      ...translationMessages.slice(-pairCount * 2)
     ];
-    const tokenCount = await countMessagesTokens(testChunks);
+    
+    const tokenCount = await countMessagesTokens(testMessages);
+    
     if (tokenCount <= maxTokens) {
-      result.splice(1, 0, translationMessages[i - 1], translationMessages[i]);
-      totalTokenCount = tokenCount;
+      if (pairCount > bestCount) {
+        bestCount = pairCount;
+        bestTokenCount = tokenCount;
+      }
+      left = mid + 1;
     } else {
-      break;
+      right = mid - 1;
     }
   }
-  const translationTokenCount =
-    totalTokenCount - systemTokenCount - taskTokenCount;
+
+  // Construct final result with the best fitting number of pairs
+  const result = [
+    baseMessages[0],
+    baseMessages[1],
+    ...translationMessages.slice(-bestCount * 2),
+    baseMessages[2]
+  ];
 
   return {
     messages: result,
     tokenCounts: {
       system: systemTokenCount,
       task: taskTokenCount,
-      translation: translationTokenCount,
+      translation: bestTokenCount - systemTokenCount - taskTokenCount
     },
   };
 }

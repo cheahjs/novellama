@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiEye, FiEyeOff, FiRefreshCw, FiDownload, FiEdit, FiSave } from "react-icons/fi";
+import { FiEye, FiEyeOff, FiRefreshCw, FiDownload, FiEdit, FiSave, FiPlayCircle } from "react-icons/fi";
 import { TranslationChapter, Novel, TranslationResponse } from "@/types";
 import LiveTokenCounter from "./LiveTokenCounter";
 import ReactMarkdown from 'react-markdown';
@@ -13,6 +13,8 @@ interface TranslationEditorProps {
   onTranslate: (sourceContent: string) => Promise<TranslationResponse | undefined>;
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
   isLoading: boolean;
+  onBatchTranslate?: (count: number) => Promise<void>;
+  isBatchTranslating?: boolean;
 }
 
 const TranslationEditor: React.FC<TranslationEditorProps> = ({
@@ -22,6 +24,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   onTranslate,
   onSaveEdit,
   isLoading,
+  onBatchTranslate,
+  isBatchTranslating,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [sourceContent, setSourceContent] = useState<string>("");
@@ -32,6 +36,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editTitle, setEditTitle] = useState<string>("");
   const [editContent, setEditContent] = useState<string>("");
+  const [batchCount, setBatchCount] = useState<number>(5);
 
   useEffect(() => {
     if (currentChapter) {
@@ -55,7 +60,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           url: novel.sourceUrl,
-          chapterNumber: currentChapterNumber + 1,
+          chapterNumber: currentChapterNumber,
           type: "syosetu",
         }),
       });
@@ -242,6 +247,31 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             >
               {isLoading ? "Translating..." : "Translate"}
             </button>
+
+            {onBatchTranslate && (
+              <div className="flex items-center gap-2 ml-2">
+                <input
+                  type="number"
+                  value={batchCount}
+                  onChange={(e) => setBatchCount(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-16 py-2 px-2 rounded-md bg-gray-700 text-white"
+                  min="1"
+                />
+                <button
+                  type="button"
+                  onClick={() => onBatchTranslate(batchCount)}
+                  disabled={isBatchTranslating || isLoading}
+                  className={`py-2 px-4 rounded-md flex items-center ${
+                    isBatchTranslating || isLoading
+                      ? "bg-gray-500 cursor-not-allowed"
+                      : "bg-purple-600 hover:bg-purple-700 text-white"
+                  }`}
+                >
+                  <FiPlayCircle className="mr-2" />
+                  {isBatchTranslating ? "Processing..." : "Batch Translate"}
+                </button>
+              </div>
+            )}
           </div>
 
           {lastTokenUsage && (

@@ -21,6 +21,8 @@ export default function TranslatePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [isBatchTranslating, setIsBatchTranslating] = useState(false);
+
   const loadNovel = useCallback(async (novelId?: string) => {
     if (!novelId) return;
 
@@ -166,6 +168,55 @@ export default function TranslatePage() {
     }
   };
 
+  const handleBatchTranslate = async (count: number) => {
+    if (!novel) return;
+    
+    setIsBatchTranslating(true);
+    const startingChapter = (novel.chapters?.length || 0) + 1;
+    console.log(`Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}`);
+    
+    try {
+      for (let i = 0; i < count; i++) {
+        const targetChapterNumber = startingChapter + i;
+        console.log(`Translating chapter ${targetChapterNumber}...`);
+        
+        // Scrape the next chapter
+        const response = await fetch("/api/scrape", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: novel.sourceUrl,
+            chapterNumber: targetChapterNumber,
+            type: "syosetu",
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to scrape chapter ${targetChapterNumber}`);
+        }
+
+        const data = await response.json();
+        if (!data.title || !data.content) {
+          throw new Error(`No content found for chapter ${targetChapterNumber}`);
+        }
+
+        // Translate the chapter
+        const sourceContent = `# ${data.title}\n\n${data.content}`;
+        await handleTranslate(sourceContent);
+        
+        // Show progress
+        toast.success(`Completed chapter ${targetChapterNumber} (${i + 1} of ${count})`);
+      }
+      
+      toast.success('Batch translation completed');
+    } catch (error: unknown) {
+      console.error('Batch translation error:', error);
+      toast.error('Failed to complete batch translation');
+    } finally {
+      setIsBatchTranslating(false);
+    }
+  };
+
   const handleNavigate = (index: number) => {
     if (!novel) return;
 
@@ -266,6 +317,8 @@ export default function TranslatePage() {
           onTranslate={handleTranslate}
           onSaveEdit={handleSaveEdit}
           isLoading={isLoading}
+          onBatchTranslate={novel?.sourceUrl ? handleBatchTranslate : undefined}
+          isBatchTranslating={isBatchTranslating}
         />
 
         <ChapterNavigation
