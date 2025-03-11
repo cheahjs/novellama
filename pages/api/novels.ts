@@ -1,6 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { Novel } from '@/types';
-import { readNovels, getNovelById, saveNovel, deleteNovel } from '@/utils/fileStorage';
+import {
+  readNovels,
+  getNovelById,
+  saveNovel,
+  deleteNovel,
+} from '@/utils/fileStorage';
 import { nanoid } from 'nanoid';
 
 export const config = {
@@ -13,7 +18,7 @@ export const config = {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   try {
     switch (req.method) {
@@ -42,7 +47,7 @@ export default async function handler(
           references: [],
           chapters: [],
           createdAt: Date.now(),
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
         };
         await saveNovel(novel);
         return res.status(201).json(novel);
@@ -54,11 +59,11 @@ export default async function handler(
         if (!existingNovel) {
           return res.status(404).json({ message: 'Novel not found' });
         }
-        
+
         const updatedNovel = {
           ...existingNovel,
           ...req.body,
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
         };
         await saveNovel(updatedNovel);
         return res.status(200).json(updatedNovel);
@@ -76,4 +81,4 @@ export default async function handler(
     console.error('API error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
-} 
+}

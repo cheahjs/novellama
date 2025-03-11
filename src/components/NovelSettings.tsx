@@ -12,11 +12,11 @@ interface NovelSettingsProps {
   onClose: () => void;
 }
 
-const NovelSettings: React.FC<NovelSettingsProps> = ({ 
-  novel, 
-  onSave, 
+const NovelSettings: React.FC<NovelSettingsProps> = ({
+  novel,
+  onSave,
   isOpen,
-  onClose 
+  onClose,
 }) => {
   const [formData, setFormData] = useState({
     title: novel.title,
@@ -25,157 +25,176 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     systemPrompt: novel.systemPrompt,
     sourceUrl: novel.sourceUrl,
     references: novel.references,
-    translationTemplate: novel.translationTemplate || 'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.\n\n${sourceContent}'
+    translationTemplate:
+      novel.translationTemplate ||
+      'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.\n\n${sourceContent}',
   });
-  
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAddReference = (reference: Omit<Reference, 'id'>) => {
     const newReference: Reference = {
       ...reference,
-      id: crypto.randomUUID()
+      id: crypto.randomUUID(),
     };
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      references: [...prev.references, newReference]
+      references: [...prev.references, newReference],
     }));
   };
 
   const handleDeleteReference = (id: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      references: prev.references.filter(ref => ref.id !== id)
+      references: prev.references.filter((ref) => ref.id !== id),
     }));
   };
 
   const handleEditReference = (updatedReference: Reference) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      references: prev.references.map(ref => 
-        ref.id === updatedReference.id ? updatedReference : ref
-      )
+      references: prev.references.map((ref) =>
+        ref.id === updatedReference.id ? updatedReference : ref,
+      ),
     }));
   };
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
     onClose();
   };
-  
+
   if (!isOpen) return null;
-  
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-      <div className="bg-gray-900 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
+    <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-gray-900 p-6">
+        <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold">Novel Settings</h2>
-          <button 
+          <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
           >
             <FiX size={24} />
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Title</label>
+            <label className="mb-1 block text-sm font-medium">Title</label>
             <input
               type="text"
               name="title"
               value={formData.title}
               onChange={handleChange}
-              className="w-full p-2 border rounded"
+              className="w-full rounded border p-2"
               required
             />
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Source Language</label>
+              <label className="mb-1 block text-sm font-medium">
+                Source Language
+              </label>
               <input
                 type="text"
                 name="sourceLanguage"
                 value={formData.sourceLanguage}
                 onChange={handleChange}
-                className="w-full p-2 border rounded"
+                className="w-full rounded border p-2"
                 required
               />
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium mb-1">Target Language</label>
+              <label className="mb-1 block text-sm font-medium">
+                Target Language
+              </label>
               <input
                 type="text"
                 name="targetLanguage"
                 value={formData.targetLanguage}
                 onChange={handleChange}
-                className="w-full p-2 border rounded"
+                className="w-full rounded border p-2"
                 required
               />
             </div>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium mb-1">Source URL</label>
+            <label className="mb-1 block text-sm font-medium">Source URL</label>
             <input
               type="url"
               name="sourceUrl"
               value={formData.sourceUrl}
               onChange={handleChange}
-              className="w-full p-2 border rounded"
+              className="w-full rounded border p-2"
               placeholder="https://ncode.syosetu.com/nxxxxxxx/"
               pattern="https://ncode\.syosetu\.com/n[a-z0-9]+/?$"
               title="Please enter a valid syosetu.com novel URL"
               required
             />
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium mb-1">System Prompt</label>
+            <label className="mb-1 block text-sm font-medium">
+              System Prompt
+            </label>
             <div className="relative">
               <textarea
                 name="systemPrompt"
                 value={formData.systemPrompt}
                 onChange={handleChange}
                 rows={4}
-                className="w-full p-2 border rounded"
+                className="w-full rounded border p-2"
                 placeholder="Instructions for translation style and guidelines..."
               />
               <div className="absolute top-2 right-2">
-                <LiveTokenCounter text={formData.systemPrompt} className="bg-gray-800 px-2 py-1 rounded" />
+                <LiveTokenCounter
+                  text={formData.systemPrompt}
+                  className="rounded bg-gray-800 px-2 py-1"
+                />
               </div>
             </div>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium mb-1">Translation Template</label>
+            <label className="mb-1 block text-sm font-medium">
+              Translation Template
+            </label>
             <div className="relative">
               <textarea
                 name="translationTemplate"
                 value={formData.translationTemplate}
                 onChange={handleChange}
                 rows={4}
-                className="w-full p-2 border rounded"
+                className="w-full rounded border p-2"
                 placeholder="Template for translation instruction..."
               />
               <div className="absolute top-2 right-2">
-                <LiveTokenCounter text={formData.translationTemplate} className="bg-gray-800 px-2 py-1 rounded" />
+                <LiveTokenCounter
+                  text={formData.translationTemplate}
+                  className="rounded bg-gray-800 px-2 py-1"
+                />
               </div>
             </div>
-            <p className="text-sm text-gray-500 mt-1">
-              Available variables: ${'{sourceLanguage}'}, ${'{targetLanguage}'}, ${'{sourceContent}'}
+            <p className="mt-1 text-sm text-gray-500">
+              Available variables: ${'{sourceLanguage}'}, ${'{targetLanguage}'},
+              ${'{sourceContent}'}
             </p>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium mb-1">References</label>
+            <label className="mb-1 block text-sm font-medium">References</label>
             <div className="space-y-4">
-              {formData.references.map(reference => (
+              {formData.references.map((reference) => (
                 <ReferenceItem
                   key={reference.id}
                   reference={reference}
@@ -186,18 +205,18 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
               <ReferenceInput onAdd={handleAddReference} />
             </div>
           </div>
-          
+
           <div className="flex justify-end pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-200 rounded mr-2 hover:bg-gray-300"
+              className="mr-2 rounded bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded flex items-center hover:bg-blue-700"
+              className="flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
             >
               <FiSave className="mr-1" /> Save Settings
             </button>

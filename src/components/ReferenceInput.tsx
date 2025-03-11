@@ -9,8 +9,13 @@ interface ReferenceInputProps {
   initialReference?: Reference;
 }
 
-const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference }) => {
-  const [inputType, setInputType] = useState<'text' | 'url'>(initialReference ? 'text' : 'text');
+const ReferenceInput: React.FC<ReferenceInputProps> = ({
+  onAdd,
+  initialReference,
+}) => {
+  const [inputType, setInputType] = useState<'text' | 'url'>(
+    initialReference ? 'text' : 'text',
+  );
   const [title, setTitle] = useState(initialReference?.title || '');
   const [content, setContent] = useState(initialReference?.content || '');
   const [url, setUrl] = useState('');
@@ -20,7 +25,7 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
     if (e) {
       e.preventDefault();
     }
-    
+
     if (inputType === 'text') {
       if (!title.trim() || !content.trim()) {
         toast.error('Please fill in both title and content');
@@ -45,7 +50,9 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
         });
         setUrl('');
       } catch (error) {
-        toast.error('Failed to scrape the webpage. Please try again or use text input.');
+        toast.error(
+          'Failed to scrape the webpage. Please try again or use text input.',
+        );
         console.error('Error scraping webpage:', error);
       } finally {
         setIsLoading(false);
@@ -55,11 +62,11 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
 
   return (
     <div className="space-y-4">
-      <div className="flex space-x-4 mb-4">
+      <div className="mb-4 flex space-x-4">
         <button
           type="button"
           onClick={() => setInputType('text')}
-          className={`px-4 py-2 rounded ${
+          className={`rounded px-4 py-2 ${
             inputType === 'text'
               ? 'bg-blue-600 text-white'
               : 'bg-gray-200 text-gray-700'
@@ -70,7 +77,7 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
         <button
           type="button"
           onClick={() => setInputType('url')}
-          className={`px-4 py-2 rounded ${
+          className={`rounded px-4 py-2 ${
             inputType === 'url'
               ? 'bg-blue-600 text-white'
               : 'bg-gray-200 text-gray-700'
@@ -88,7 +95,7 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
               placeholder="Reference Title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-2 border rounded"
+              className="w-full rounded border p-2"
             />
           </div>
           <div className="relative">
@@ -97,10 +104,13 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={4}
-              className="w-full p-2 border rounded"
+              className="w-full rounded border p-2"
             />
             <div className="absolute top-2 right-2">
-              <LiveTokenCounter text={content} className="bg-gray-800 px-2 py-1 rounded" />
+              <LiveTokenCounter
+                text={content}
+                className="rounded bg-gray-800 px-2 py-1"
+              />
             </div>
           </div>
         </>
@@ -111,7 +121,7 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
             placeholder="Enter webpage URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            className="w-full p-2 border rounded"
+            className="w-full rounded border p-2"
           />
         </div>
       )}
@@ -120,7 +130,7 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
         type="button"
         onClick={() => handleSubmit()}
         disabled={isLoading}
-        className={`w-full py-2 px-4 rounded text-white ${
+        className={`w-full rounded px-4 py-2 text-white ${
           isLoading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
         }`}
       >
@@ -130,4 +140,4 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({ onAdd, initialReference
   );
 };
 
-export default ReferenceInput; 
+export default ReferenceInput;

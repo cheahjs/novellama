@@ -36,16 +36,16 @@ export async function readNovels(): Promise<Novel[]> {
 // Write novels to file with debouncing
 export async function writeNovels(novels: Novel[]): Promise<void> {
   await ensureDataFile();
-  
+
   // Update cache immediately
   novelsCache = novels;
-  
+
   // Debounce disk writes
   const now = Date.now();
   if (now - lastWrite < WRITE_DEBOUNCE_MS) {
     return;
   }
-  
+
   lastWrite = now;
   await fs.writeFile(DATA_FILE, JSON.stringify(novels, null, 2));
 }
@@ -53,20 +53,20 @@ export async function writeNovels(novels: Novel[]): Promise<void> {
 // Get a single novel by ID
 export async function getNovelById(id: string): Promise<Novel | null> {
   const novels = await readNovels();
-  return novels.find(novel => novel.id === id) || null;
+  return novels.find((novel) => novel.id === id) || null;
 }
 
 // Save a novel (create or update)
 export async function saveNovel(novel: Novel): Promise<Novel> {
   const novels = await readNovels();
-  const index = novels.findIndex(n => n.id === novel.id);
-  
+  const index = novels.findIndex((n) => n.id === novel.id);
+
   if (index >= 0) {
     novels[index] = { ...novel, updatedAt: Date.now() };
   } else {
     novels.push(novel);
   }
-  
+
   await writeNovels(novels);
   return novel;
 }
@@ -74,7 +74,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
 // Delete a novel
 export async function deleteNovel(id: string): Promise<void> {
   const novels = await readNovels();
-  const filteredNovels = novels.filter(novel => novel.id !== id);
+  const filteredNovels = novels.filter((novel) => novel.id !== id);
   await writeNovels(filteredNovels);
 }
 
@@ -82,4 +82,4 @@ export async function deleteNovel(id: string): Promise<void> {
 export function clearCache(): void {
   novelsCache = [];
   lastWrite = 0;
-} 
+}

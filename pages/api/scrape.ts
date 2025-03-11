@@ -5,7 +5,7 @@ import axios from 'axios';
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -19,7 +19,8 @@ export default async function handler(
     }
 
     // Construct chapter URL if chapter number is provided for syosetu
-    const targetUrl = type === 'syosetu' && chapterNumber ? `${url}${chapterNumber}/` : url;
+    const targetUrl =
+      type === 'syosetu' && chapterNumber ? `${url}${chapterNumber}/` : url;
 
     // Fetch the webpage content
     const response = await axios.get(targetUrl);
@@ -28,11 +29,17 @@ export default async function handler(
 
     if (type === 'syosetu') {
       // Extract title and content specifically for syosetu.com
-      const title = document.querySelector('.p-novel__title')?.textContent?.trim();
-      const content = document.querySelector('.p-novel__body')?.textContent?.trim();
+      const title = document
+        .querySelector('.p-novel__title')
+        ?.textContent?.trim();
+      const content = document
+        .querySelector('.p-novel__body')
+        ?.textContent?.trim();
 
       if (!title || !content) {
-        return res.status(400).json({ error: 'Could not extract content from the syosetu webpage' });
+        return res.status(400).json({
+          error: 'Could not extract content from the syosetu webpage',
+        });
       }
 
       return res.status(200).json({
@@ -45,7 +52,9 @@ export default async function handler(
       const article = reader.parse();
 
       if (!article) {
-        return res.status(400).json({ error: 'Could not extract content from the webpage' });
+        return res
+          .status(400)
+          .json({ error: 'Could not extract content from the webpage' });
       }
 
       return res.status(200).json({
@@ -58,4 +67,4 @@ export default async function handler(
     console.error('Error scraping webpage:', error);
     return res.status(500).json({ error: 'Failed to scrape webpage' });
   }
-} 
+}

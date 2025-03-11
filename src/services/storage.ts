@@ -3,7 +3,7 @@ import axios from 'axios';
 
 export const saveNovel = async (novel: Novel): Promise<void> => {
   try {
-    if (novel.id && await getNovel(novel.id)) {
+    if (novel.id && (await getNovel(novel.id))) {
       // Update existing novel
       await axios.put(`/api/novels?id=${novel.id}`, novel);
     } else {
@@ -48,7 +48,10 @@ export const deleteNovel = async (id: string): Promise<void> => {
   }
 };
 
-export const addChapterToNovel = async (novelId: string, chapter: TranslationChapter): Promise<void> => {
+export const addChapterToNovel = async (
+  novelId: string,
+  chapter: TranslationChapter,
+): Promise<void> => {
   try {
     const novel = await getNovel(novelId);
     if (!novel) throw new Error('Novel not found');

@@ -6,7 +6,10 @@ interface TokenUsageProps {
   className?: string;
 }
 
-const TokenUsage: React.FC<TokenUsageProps> = ({ tokenUsage, className = '' }) => {
+const TokenUsage: React.FC<TokenUsageProps> = ({
+  tokenUsage,
+  className = '',
+}) => {
   return (
     <div className={`text-xs text-gray-400 ${className}`}>
       <div className="flex space-x-4">
@@ -15,7 +18,9 @@ const TokenUsage: React.FC<TokenUsageProps> = ({ tokenUsage, className = '' }) =
         <div>Translation: {tokenUsage.translation}</div>
         <div>Prompt: {tokenUsage.native_prompt}</div>
         <div>Completion: {tokenUsage.native_completion}</div>
-        <div>Total: {tokenUsage.native_prompt + tokenUsage.native_completion}</div>
+        <div>
+          Total: {tokenUsage.native_prompt + tokenUsage.native_completion}
+        </div>
       </div>
     </div>
   );

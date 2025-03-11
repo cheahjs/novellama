@@ -1,6 +1,6 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import axios from "axios";
-import { QualityCheckResponse } from "@/types";
+import type { NextApiRequest, NextApiResponse } from 'next';
+import axios from 'axios';
+import { QualityCheckResponse } from '@/types';
 
 interface QualityCheckRequest {
   sourceContent: string;
@@ -11,18 +11,16 @@ interface QualityCheckRequest {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
   try {
     const { sourceContent, translatedContent, sourceLanguage, targetLanguage } =
       req.body as QualityCheckRequest;
-    const url = `${
-      process.env.OPENAI_BASE_URL || "https://api.openai.com/v1"
-    }/chat/completions`;
+    const url = `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`;
 
     const systemPrompt = `You are a professional translator quality checker. 
 You will be given a source text in ${sourceLanguage} and its translation in ${targetLanguage}.
@@ -51,44 +49,44 @@ Return JSON in the format:
     const apiResponse = await axios.post(
       url,
       {
-        model: process.env.OPENAI_MODEL || "gpt-4o",
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
-        response_format: { type: "json_object" },
+        response_format: { type: 'json_object' },
       },
       {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         },
-      }
+      },
     );
 
     // Parse the response
     const responseContent = JSON.parse(
-      apiResponse.data.choices[0].message.content
+      apiResponse.data.choices[0].message.content,
     );
     const qualityCheck: QualityCheckResponse = {
       isGoodQuality: responseContent.score >= 7,
       score: responseContent.score,
-      feedback: responseContent.feedback || responseContent.evaluation || "",
+      feedback: responseContent.feedback || responseContent.evaluation || '',
     };
 
     return res.status(200).json(qualityCheck);
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
-      console.error("API error:", error.response?.data || error.message);
+      console.error('API error:', error.response?.data || error.message);
       return res.status(500).json({
-        message: "Error processing quality check",
+        message: 'Error processing quality check',
         error: error.message,
       });
     }
     const message = error instanceof Error ? error.message : `${error}`;
     return res.status(500).json({
-      message: "Error processing quality check",
+      message: 'Error processing quality check',
       error: message,
     });
   }

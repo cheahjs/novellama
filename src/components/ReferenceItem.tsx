@@ -8,13 +8,13 @@ interface ReferenceItemProps {
   onEdit?: (reference: Reference) => void;
 }
 
-const ReferenceItem: React.FC<ReferenceItemProps> = ({ 
-  reference, 
-  onDelete, 
-  onEdit 
+const ReferenceItem: React.FC<ReferenceItemProps> = ({
+  reference,
+  onDelete,
+  onEdit,
 }) => {
   const { count, isLoading } = useTokenizer(reference.content);
-  
+
   // Update reference.tokenCount if it's different from the calculated count
   React.useEffect(() => {
     if (!isLoading && count !== null && count !== reference.tokenCount) {
@@ -23,26 +23,26 @@ const ReferenceItem: React.FC<ReferenceItemProps> = ({
   }, [count, isLoading, reference]);
 
   return (
-    <div className="reference-item border rounded-lg p-4 mb-4">
-      <div className="flex justify-between items-center mb-2">
+    <div className="reference-item mb-4 rounded-lg border p-4">
+      <div className="mb-2 flex items-center justify-between">
         <h3 className="font-semibold">{reference.title}</h3>
         <div className="flex items-center">
-          <span className="text-sm text-gray-500 mr-4">
-            {isLoading ? '...' : (count?.toLocaleString() || 'Unknown')} tokens
+          <span className="mr-4 text-sm text-gray-500">
+            {isLoading ? '...' : count?.toLocaleString() || 'Unknown'} tokens
           </span>
-          
+
           {onEdit && (
-            <button 
-              onClick={() => onEdit(reference)} 
-              className="text-blue-600 hover:text-blue-800 mr-2"
+            <button
+              onClick={() => onEdit(reference)}
+              className="mr-2 text-blue-600 hover:text-blue-800"
             >
               Edit
             </button>
           )}
-          
+
           {onDelete && (
-            <button 
-              onClick={() => onDelete(reference.id)} 
+            <button
+              onClick={() => onDelete(reference.id)}
               className="text-red-600 hover:text-red-800"
             >
               Delete
@@ -50,10 +50,10 @@ const ReferenceItem: React.FC<ReferenceItemProps> = ({
           )}
         </div>
       </div>
-      
+
       <div className="reference-content text-sm whitespace-pre-wrap">
-        {reference.content.length > 200 
-          ? `${reference.content.substring(0, 200)}...` 
+        {reference.content.length > 200
+          ? `${reference.content.substring(0, 200)}...`
           : reference.content}
       </div>
     </div>

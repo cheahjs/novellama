@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface TokenizerState {
   isLoading: boolean;
@@ -22,13 +22,13 @@ let isInitializing = false;
 
 // Get the model name from environment variables
 const TOKENIZER_MODEL =
-  process.env.NEXT_PUBLIC_TOKENIZER_MODEL || "Xenova/gpt-4o";
+  process.env.NEXT_PUBLIC_TOKENIZER_MODEL || 'Xenova/gpt-4o';
 
 // Debounce helper function
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const debounce = <T extends (...args: any[]) => void>(
   func: T,
-  wait: number
+  wait: number,
 ): ((...args: Parameters<T>) => void) => {
   let timeout: NodeJS.Timeout | null = null;
 
@@ -46,7 +46,7 @@ const debounce = <T extends (...args: any[]) => void>(
 export function useTokenizer(
   text: string,
   debounceMs: number = 500,
-  modelName: string = TOKENIZER_MODEL
+  modelName: string = TOKENIZER_MODEL,
 ): TokenizerState {
   const [state, setState] = useState<TokenizerState>({
     isLoading: !isWorkerInitialized && !isInitializing,
@@ -73,7 +73,8 @@ export function useTokenizer(
   }, []);
 
   // Store the debounced function in a ref so it persists across renders
-  const debouncedCountRef = useRef<(text: string) => void | undefined>(undefined);
+  const debouncedCountRef =
+    useRef<(text: string) => void | undefined>(undefined);
 
   useEffect(() => {
     // Initialize worker if it doesn't exist
@@ -83,7 +84,7 @@ export function useTokenizer(
         initializationPromise = new Promise<void>((resolve) => {
           try {
             workerInstance = new Worker(
-              new URL("../workers/tokenizer.worker.ts", import.meta.url)
+              new URL('../workers/tokenizer.worker.ts', import.meta.url),
             );
 
             workerInstance.onmessage = (event) => {
@@ -95,10 +96,10 @@ export function useTokenizer(
 
               if (error) {
                 resolver({ error });
-              } else if (type === "init") {
+              } else if (type === 'init') {
                 isWorkerInitialized = true;
                 resolver({ success });
-              } else if (type === "count") {
+              } else if (type === 'count') {
                 resolver({ count });
               }
             };
@@ -108,7 +109,7 @@ export function useTokenizer(
             const promise = new Promise<WorkerResult>((resolve) => {
               pendingRequests.set(id, resolve);
             });
-            workerInstance.postMessage({ type: "init", id, modelName });
+            workerInstance.postMessage({ type: 'init', id, modelName });
 
             promise.then((result: WorkerResult) => {
               if (result.error) {
@@ -122,7 +123,7 @@ export function useTokenizer(
             handleError(
               error instanceof Error
                 ? error.message
-                : "Failed to initialize tokenizer"
+                : 'Failed to initialize tokenizer',
             );
             resolve();
           }
@@ -139,7 +140,7 @@ export function useTokenizer(
     }
 
     return () => {
-      if (document.visibilityState === "hidden") {
+      if (document.visibilityState === 'hidden') {
         workerInstance?.terminate();
         workerInstance = undefined;
         isWorkerInitialized = false;
@@ -159,7 +160,7 @@ export function useTokenizer(
           pendingRequests.set(id, resolve);
         });
 
-        workerInstance.postMessage({ type: "count", id, text });
+        workerInstance.postMessage({ type: 'count', id, text });
 
         const result = await promise;
         if (result.error) {
@@ -172,7 +173,7 @@ export function useTokenizer(
         }
       } catch (error) {
         handleError(
-          error instanceof Error ? error.message : "Failed to count tokens"
+          error instanceof Error ? error.message : 'Failed to count tokens',
         );
       }
     };

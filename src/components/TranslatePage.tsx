@@ -23,37 +23,45 @@ export default function TranslatePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [isBatchTranslating, setIsBatchTranslating] = useState(false);
 
-  const loadNovel = useCallback(async (novelId?: string) => {
-    if (!novelId) return;
+  const loadNovel = useCallback(
+    async (novelId?: string) => {
+      if (!novelId) return;
 
-    try {
-      const loadedNovel = await getNovel(novelId);
-      if (loadedNovel) {
-        setNovel(loadedNovel);
-        // If chapter is specified in URL, navigate to it
-        if (chapter !== undefined) {
-          const chapterIndex = typeof chapter === 'string' ? parseInt(chapter) - 1 : 0;
-          if (!isNaN(chapterIndex) && chapterIndex >= 0 && chapterIndex < (loadedNovel.chapters?.length || 0)) {
-            setCurrentChapterIndex(chapterIndex);
-            setCurrentChapterNumber(chapterIndex + 1);
+      try {
+        const loadedNovel = await getNovel(novelId);
+        if (loadedNovel) {
+          setNovel(loadedNovel);
+          // If chapter is specified in URL, navigate to it
+          if (chapter !== undefined) {
+            const chapterIndex =
+              typeof chapter === 'string' ? parseInt(chapter) - 1 : 0;
+            if (
+              !isNaN(chapterIndex) &&
+              chapterIndex >= 0 &&
+              chapterIndex < (loadedNovel.chapters?.length || 0)
+            ) {
+              setCurrentChapterIndex(chapterIndex);
+              setCurrentChapterNumber(chapterIndex + 1);
+            }
+          } else if (loadedNovel.chapters?.length > 0) {
+            // Default to latest chapter if no chapter specified
+            setCurrentChapterIndex(loadedNovel.chapters.length - 1);
+            setCurrentChapterNumber(loadedNovel.chapters.length);
           }
-        } else if (loadedNovel.chapters?.length > 0) {
-          // Default to latest chapter if no chapter specified
-          setCurrentChapterIndex(loadedNovel.chapters.length - 1);
-          setCurrentChapterNumber(loadedNovel.chapters.length);
+        } else {
+          toast.error('Novel not found');
+          router.push('/');
         }
-      } else {
-        toast.error('Novel not found');
+      } catch (error) {
+        console.error('Failed to load novel:', error);
+        toast.error('Failed to load novel');
         router.push('/');
+      } finally {
+        setIsLoadingNovel(false);
       }
-    } catch (error) {
-      console.error('Failed to load novel:', error);
-      toast.error('Failed to load novel');
-      router.push('/');
-    } finally {
-      setIsLoadingNovel(false);
-    }
-  }, [router, chapter]);
+    },
+    [router, chapter],
+  );
 
   useEffect(() => {
     if (id && typeof id === 'string') {
@@ -70,7 +78,7 @@ export default function TranslatePage() {
         ...currentChapter,
         title,
         translatedContent,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
 
       // Create new chapters array with updated chapter
@@ -81,7 +89,7 @@ export default function TranslatePage() {
       const updatedNovel = {
         ...novel,
         chapters: updatedChapters,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
 
       await saveNovel(updatedNovel);
@@ -93,16 +101,23 @@ export default function TranslatePage() {
     }
   };
 
-  const handleTranslate = async (sourceContent: string, previousTranslationData?: { previousTranslation?: string, qualityFeedback?: string }) => {
+  const handleTranslate = async (
+    sourceContent: string,
+    previousTranslationData?: {
+      previousTranslation?: string;
+      qualityFeedback?: string;
+    },
+  ) => {
     if (!novel) return;
 
     setIsLoading(true);
 
     try {
       // Remove the current chapter from the list of previous chapters
-      const previousChapters = novel.chapters?.filter(
-        (chapter) => chapter.id !== currentChapter?.id
-      ) ?? [];
+      const previousChapters =
+        novel.chapters?.filter(
+          (chapter) => chapter.id !== currentChapter?.id,
+        ) ?? [];
       const result = await translateContent({
         sourceContent,
         sourceLanguage: novel.sourceLanguage,
@@ -110,10 +125,12 @@ export default function TranslatePage() {
         systemPrompt: novel.systemPrompt,
         references: novel.references,
         previousChapters: previousChapters,
-        ...previousTranslationData // Spread the optional previous translation data
+        ...previousTranslationData, // Spread the optional previous translation data
       });
       const translatedLines = result.translatedContent.split('\n');
-      const title = translatedLines[0].startsWith('# ') ? translatedLines[0].substring(2) : `Chapter ${novel.chapters?.length ? novel.chapters.length + 1 : 1}`;
+      const title = translatedLines[0].startsWith('# ')
+        ? translatedLines[0].substring(2)
+        : `Chapter ${novel.chapters?.length ? novel.chapters.length + 1 : 1}`;
 
       // Check if we're retranslating an existing chapter
       if (currentChapter) {
@@ -124,7 +141,7 @@ export default function TranslatePage() {
           sourceContent,
           translatedContent: result.translatedContent,
           updatedAt: Date.now(),
-          qualityCheck: result.qualityCheck
+          qualityCheck: result.qualityCheck,
         };
 
         // Create new chapters array with updated chapter
@@ -135,13 +152,15 @@ export default function TranslatePage() {
         const updatedNovel = {
           ...novel,
           chapters: updatedChapters,
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
         };
         await saveNovel(updatedNovel);
         setNovel(updatedNovel);
       } else {
         // Create a new chapter
-        const chapterNumber = novel.chapters?.length ? novel.chapters.length + 1 : 1;
+        const chapterNumber = novel.chapters?.length
+          ? novel.chapters.length + 1
+          : 1;
 
         const newChapter: TranslationChapter = {
           id: `chapter_${Date.now()}`,
@@ -151,7 +170,7 @@ export default function TranslatePage() {
           number: chapterNumber,
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          qualityCheck: result.qualityCheck
+          qualityCheck: result.qualityCheck,
         };
 
         // Update the novel with the new chapter
@@ -173,24 +192,26 @@ export default function TranslatePage() {
 
   const handleBatchTranslate = async (count: number) => {
     if (!novel) return;
-    
+
     setIsBatchTranslating(true);
     const startingChapter = (novel.chapters?.length || 0) + 1;
-    console.log(`Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}`);
-    
+    console.log(
+      `Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}`,
+    );
+
     try {
       for (let i = 0; i < count; i++) {
         const targetChapterNumber = startingChapter + i;
         console.log(`Translating chapter ${targetChapterNumber}...`);
-        
+
         // Scrape the next chapter
-        const response = await fetch("/api/scrape", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const response = await fetch('/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             url: novel.sourceUrl,
             chapterNumber: targetChapterNumber,
-            type: "syosetu",
+            type: 'syosetu',
           }),
         });
 
@@ -200,17 +221,21 @@ export default function TranslatePage() {
 
         const data = await response.json();
         if (!data.title || !data.content) {
-          throw new Error(`No content found for chapter ${targetChapterNumber}`);
+          throw new Error(
+            `No content found for chapter ${targetChapterNumber}`,
+          );
         }
 
         // Translate the chapter
         const sourceContent = `# ${data.title}\n\n${data.content}`;
         await handleTranslate(sourceContent);
-        
+
         // Show progress
-        toast.success(`Completed chapter ${targetChapterNumber} (${i + 1} of ${count})`);
+        toast.success(
+          `Completed chapter ${targetChapterNumber} (${i + 1} of ${count})`,
+        );
       }
-      
+
       toast.success('Batch translation completed');
     } catch (error: unknown) {
       console.error('Batch translation error:', error);
@@ -227,7 +252,9 @@ export default function TranslatePage() {
       // When creating a new chapter, update URL and indices
       setCurrentChapterNumber(currentChapterNumber + 1);
       setCurrentChapterIndex(novel.chapters?.length || 0);
-      router.push(`/translate/${novel.id}/${(novel.chapters?.length || 0) + 1}`);
+      router.push(
+        `/translate/${novel.id}/${(novel.chapters?.length || 0) + 1}`,
+      );
     } else if (index >= 0 && index < (novel.chapters?.length || 0)) {
       // When navigating existing chapters, update URL and indices
       setCurrentChapterIndex(index);
@@ -239,7 +266,11 @@ export default function TranslatePage() {
   const handleDeleteLatest = async () => {
     if (!novel || !novel.chapters || novel.chapters.length === 0) return;
 
-    if (!confirm('Are you sure you want to delete the latest chapter? This action cannot be undone.')) {
+    if (
+      !confirm(
+        'Are you sure you want to delete the latest chapter? This action cannot be undone.',
+      )
+    ) {
       return;
     }
 
@@ -248,16 +279,16 @@ export default function TranslatePage() {
       const updatedNovel = {
         ...novel,
         chapters: updatedChapters,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
 
       await saveNovel(updatedNovel);
       setNovel(updatedNovel);
-      
+
       // Navigate to the new latest chapter
       const newIndex = Math.max(0, updatedChapters.length - 1);
       handleNavigate(newIndex);
-      
+
       toast.success('Chapter deleted successfully');
     } catch (error) {
       console.error('Failed to delete chapter:', error);
@@ -271,7 +302,7 @@ export default function TranslatePage() {
         const updatedNovel = {
           ...novel,
           ...updatedSettings,
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
         };
 
         await saveNovel(updatedNovel);
@@ -312,11 +343,14 @@ export default function TranslatePage() {
         <title>{novel.title} - Novellama</title>
       </Head>
 
-      <main className="container mx-auto px-4 py-8 max-w-3xl">
+      <main className="container mx-auto max-w-3xl px-4 py-8">
         <Toaster position="top-right" />
 
-        <div className="flex items-center justify-between mb-6">
-          <Link href="/" className="flex items-center text-blue-600 hover:underline">
+        <div className="mb-6 flex items-center justify-between">
+          <Link
+            href="/"
+            className="flex items-center text-blue-600 hover:underline"
+          >
             <FiArrowLeft className="mr-1" /> Back to Novels
           </Link>
 

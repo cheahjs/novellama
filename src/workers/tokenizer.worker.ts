@@ -17,18 +17,18 @@ self.onmessage = async (event) => {
 
       case 'count':
         if (!tokenizer) {
-          self.postMessage({ 
-            type: 'count', 
-            id, 
-            error: 'Tokenizer not initialized' 
+          self.postMessage({
+            type: 'count',
+            id,
+            error: 'Tokenizer not initialized',
           });
           return;
         }
         const result = tokenizer.encode(text);
-        self.postMessage({ 
-          type: 'count', 
-          id, 
-          count: result.length 
+        self.postMessage({
+          type: 'count',
+          id,
+          count: result.length,
         });
         break;
 
@@ -36,10 +36,10 @@ self.onmessage = async (event) => {
         throw new Error(`Unknown message type: ${type}`);
     }
   } catch (error) {
-    self.postMessage({ 
-      type, 
-      id, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    self.postMessage({
+      type,
+      id,
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
-}; 
+};
