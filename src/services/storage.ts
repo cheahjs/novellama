@@ -1,7 +1,9 @@
 import { Novel, NovelWithChapters, TranslationChapter } from '@/types';
 import axios from 'axios';
 
-export const saveNovel = async (novel: Novel | NovelWithChapters): Promise<void> => {
+export const saveNovel = async (
+  novel: Novel | NovelWithChapters,
+): Promise<void> => {
   try {
     if (novel.id && (await getNovel(novel.id))) {
       // Update existing novel
@@ -18,7 +20,7 @@ export const saveNovel = async (novel: Novel | NovelWithChapters): Promise<void>
 
 export const getNovel = async (
   id: string,
-  chapterRange?: { start: number; end: number }
+  chapterRange?: { start: number; end: number },
 ): Promise<NovelWithChapters | null> => {
   try {
     const params = new URLSearchParams({ id });
@@ -70,7 +72,10 @@ export const updateChapter = async (
   chapter: TranslationChapter,
 ): Promise<void> => {
   try {
-    await axios.put(`/api/novels/${novelId}/chapters/${chapter.number}`, chapter);
+    await axios.put(
+      `/api/novels/${novelId}/chapters/${chapter.number}`,
+      chapter,
+    );
   } catch (error) {
     console.error('Failed to update chapter:', error);
     throw error;
@@ -90,7 +95,7 @@ export const deleteChapter = async (
 };
 
 export const getChapterTOC = async (
-  novelId: string
+  novelId: string,
 ): Promise<Array<{ number: number; title: string }>> => {
   try {
     const response = await axios.get(`/api/novels/${novelId}/chapters/toc`);

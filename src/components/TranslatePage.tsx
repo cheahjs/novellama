@@ -83,13 +83,13 @@ export default function TranslatePage() {
 
       // Save the updated chapter
       await addChapterToNovel(novel.id, updatedChapter);
-      
+
       // Reload the novel to get the updated chapters
       const updatedNovel = await getNovel(novel.id);
       if (updatedNovel) {
         setNovel(updatedNovel);
       }
-      
+
       toast.success('Changes saved successfully');
     } catch (error) {
       console.error('Failed to save changes:', error);
@@ -102,6 +102,7 @@ export default function TranslatePage() {
     previousTranslationData?: {
       previousTranslation?: string;
       qualityFeedback?: string;
+      useImprovementFeedback?: boolean;
     },
   ) => {
     if (!novel) return;
@@ -143,7 +144,7 @@ export default function TranslatePage() {
 
         // Save the updated chapter
         await addChapterToNovel(novel.id, updatedChapter);
-        
+
         // Reload the novel to get the updated chapters
         const updatedNovel = await getNovel(novel.id);
         if (updatedNovel) {
@@ -151,7 +152,8 @@ export default function TranslatePage() {
         }
       } else {
         // Create a new chapter
-        const chapterNumber = currentChapter?.number || 
+        const chapterNumber =
+          currentChapter?.number ||
           (novel.chapters?.length ? novel.chapters.length + 1 : 1);
 
         const newChapter: TranslationChapter = {
@@ -167,7 +169,7 @@ export default function TranslatePage() {
 
         // Save the new chapter
         await addChapterToNovel(novel.id, newChapter);
-        
+
         // Reload the novel to get the updated chapters
         const updatedNovel = await getNovel(novel.id);
         if (updatedNovel) {
@@ -191,10 +193,13 @@ export default function TranslatePage() {
 
     setIsBatchTranslating(true);
     // Find the highest chapter number that exists
-    const highestChapterNumber = novel.chapters.reduce((max: number, chapter: TranslationChapter) => 
-      Math.max(max, chapter.number), 0);
+    const highestChapterNumber = novel.chapters.reduce(
+      (max: number, chapter: TranslationChapter) =>
+        Math.max(max, chapter.number),
+      0,
+    );
     const startingChapter = highestChapterNumber + 1;
-    
+
     console.log(
       `Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}`,
     );
@@ -228,7 +233,7 @@ export default function TranslatePage() {
 
         // Translate the chapter
         const sourceContent = `# ${data.title}\n\n${data.content}`;
-        
+
         // Translate using the API directly
         const result = await translateContent({
           sourceContent,
@@ -259,7 +264,7 @@ export default function TranslatePage() {
 
         // Save the chapter
         await addChapterToNovel(novel.id, newChapter);
-        
+
         // Reload the novel to get updated chapters
         const updatedNovel = await getNovel(novel.id);
         if (updatedNovel) {

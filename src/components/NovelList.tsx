@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FiBook, FiEdit, FiTrash, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import {
+  FiBook,
+  FiEdit,
+  FiTrash,
+  FiChevronDown,
+  FiChevronUp,
+} from 'react-icons/fi';
 import { Novel } from '@/types';
 import { getChapterTOC } from '@/services/storage';
 
@@ -16,13 +22,15 @@ interface ChapterMetadata {
 
 const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
   const [expandedNovel, setExpandedNovel] = useState<string | null>(null);
-  const [chapterTOC, setChapterTOC] = useState<Record<string, ChapterMetadata[]>>({});
+  const [chapterTOC, setChapterTOC] = useState<
+    Record<string, ChapterMetadata[]>
+  >({});
 
   useEffect(() => {
     const loadTOC = async (novelId: string) => {
       if (expandedNovel === novelId && !chapterTOC[novelId]) {
         const metadata = await getChapterTOC(novelId);
-        setChapterTOC(prev => ({ ...prev, [novelId]: metadata }));
+        setChapterTOC((prev) => ({ ...prev, [novelId]: metadata }));
       }
     };
 

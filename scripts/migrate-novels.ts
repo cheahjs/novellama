@@ -25,7 +25,7 @@ async function migrateNovels() {
     const migratedNovels: Novel[] = [];
     for (const oldNovel of oldNovels) {
       console.log(`\nMigrating novel: ${oldNovel.title}`);
-      
+
       // Create novel directory in chapters
       const novelChaptersDir = path.join(CHAPTERS_DIR, oldNovel.id);
       await fs.mkdir(novelChaptersDir, { recursive: true });
@@ -33,7 +33,10 @@ async function migrateNovels() {
       // Save each chapter as a separate file
       if (oldNovel.chapters) {
         for (const chapter of oldNovel.chapters) {
-          const chapterPath = path.join(novelChaptersDir, `${chapter.number}.json`);
+          const chapterPath = path.join(
+            novelChaptersDir,
+            `${chapter.number}.json`,
+          );
           console.log(`  - Saving chapter ${chapter.number}`);
           await fs.writeFile(chapterPath, JSON.stringify(chapter, null, 2));
         }
@@ -45,7 +48,7 @@ async function migrateNovels() {
         ...novelWithoutChapters,
         chapterCount: chapters?.length || 0,
       };
-      
+
       migratedNovels.push(newNovel);
     }
 
@@ -56,7 +59,10 @@ async function migrateNovels() {
 
     // Save new novels file
     console.log('Saving migrated novels...');
-    await fs.writeFile(OLD_NOVELS_FILE, JSON.stringify(migratedNovels, null, 2));
+    await fs.writeFile(
+      OLD_NOVELS_FILE,
+      JSON.stringify(migratedNovels, null, 2),
+    );
 
     console.log('\nMigration completed successfully!');
     console.log(`- Migrated ${migratedNovels.length} novels`);
@@ -69,4 +75,4 @@ async function migrateNovels() {
 }
 
 // Run migration
-migrateNovels(); 
+migrateNovels();

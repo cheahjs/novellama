@@ -55,6 +55,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [editTitle, setEditTitle] = useState<string>('');
   const [editContent, setEditContent] = useState<string>('');
   const [batchCount, setBatchCount] = useState<number>(5);
+  const [useImprovementFeedback, setUseImprovementFeedback] =
+    useState<boolean>(true);
 
   useEffect(() => {
     if (currentChapter) {
@@ -112,6 +114,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           ? {
               previousTranslation: currentChapter.translatedContent,
               qualityFeedback: currentChapter.qualityCheck.feedback,
+              useImprovementFeedback,
             }
           : undefined;
 
@@ -238,6 +241,25 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   className="h-96 w-full rounded border bg-gray-800 p-2 font-mono text-white focus:border-transparent focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+            </div>
+          )}
+
+          {/* Add toggle for improvement feedback */}
+          {isRetranslating && currentChapter?.qualityCheck && (
+            <div className="mb-4 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="useImprovementFeedback"
+                checked={useImprovementFeedback}
+                onChange={(e) => setUseImprovementFeedback(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+              />
+              <label
+                htmlFor="useImprovementFeedback"
+                className="text-sm text-gray-300"
+              >
+                Use previous translation and feedback for improvement
+              </label>
             </div>
           )}
         </div>

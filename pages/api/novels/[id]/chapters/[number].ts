@@ -4,14 +4,16 @@ import { getNovelById } from '@/utils/fileStorage';
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   const { id, number } = req.query;
   const novelId = id as string;
   const chapterNumber = parseInt(number as string);
 
   if (!novelId || isNaN(chapterNumber)) {
-    return res.status(400).json({ message: 'Invalid novel ID or chapter number' });
+    return res
+      .status(400)
+      .json({ message: 'Invalid novel ID or chapter number' });
   }
 
   try {
@@ -30,7 +32,9 @@ export default async function handler(
 
       case 'PUT':
         await saveChapter(novelId, { ...req.body, number: chapterNumber });
-        return res.status(200).json({ message: 'Chapter updated successfully' });
+        return res
+          .status(200)
+          .json({ message: 'Chapter updated successfully' });
 
       case 'DELETE':
         await deleteChapter(novelId, chapterNumber);
@@ -44,4 +48,4 @@ export default async function handler(
     console.error('API error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
-} 
+}

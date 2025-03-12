@@ -4,7 +4,7 @@ import { getNovelById } from '@/utils/fileStorage';
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   const { id } = req.query;
   const novelId = id as string;
@@ -30,4 +30,4 @@ export default async function handler(
     console.error('API error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
-} 
+}

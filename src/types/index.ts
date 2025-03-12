@@ -44,6 +44,7 @@ export interface TranslationRequest {
   translationTemplate?: string;
   previousTranslation?: string;
   qualityFeedback?: string;
+  useImprovementFeedback?: boolean;
 }
 
 export interface TranslationResponse {

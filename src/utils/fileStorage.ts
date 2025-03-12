@@ -1,7 +1,11 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Novel, NovelWithChapters } from '@/types';
-import { getChapters, deleteNovelChapters, listChapters } from './chapterStorage';
+import {
+  getChapters,
+  deleteNovelChapters,
+  listChapters,
+} from './chapterStorage';
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'novels.json');
 const WRITE_DEBOUNCE_MS = 1000;
@@ -52,11 +56,11 @@ export async function writeNovels(novels: Novel[]): Promise<void> {
 // Get a single novel by ID with optional chapter range
 export async function getNovelById(
   id: string,
-  chapterRange?: { start: number; end: number }
+  chapterRange?: { start: number; end: number },
 ): Promise<NovelWithChapters | null> {
   const novels = await readNovels();
   const novel = novels.find((novel) => novel.id === id);
-  
+
   if (!novel) return null;
 
   // If no chapter range is specified, get all chapters

@@ -41,7 +41,11 @@ export const translateContent = async (
 
     // Build improvement context when retranslating with previous translation and feedback
     let improvementPrompt = '';
-    if (request.previousTranslation && request.qualityFeedback) {
+    if (
+      request.previousTranslation &&
+      request.qualityFeedback &&
+      request.useImprovementFeedback
+    ) {
       improvementPrompt = `Here is a previous translation attempt with quality feedback. Please improve upon this translation addressing the issues mentioned:
 Previous translation:
 <translation>

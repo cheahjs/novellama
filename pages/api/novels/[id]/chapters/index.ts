@@ -4,7 +4,7 @@ import { getNovelById, saveNovel } from '@/utils/fileStorage';
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   const { id } = req.query;
   const novelId = id as string;
@@ -23,14 +23,16 @@ export default async function handler(
       case 'POST':
         const chapter = req.body;
         await saveChapter(novelId, chapter);
-        
+
         // Update novel's chapter count
         await saveNovel({
           ...novel,
           chapterCount: Math.max(novel.chapterCount || 0, chapter.number),
         });
-        
-        return res.status(201).json({ message: 'Chapter created successfully' });
+
+        return res
+          .status(201)
+          .json({ message: 'Chapter created successfully' });
 
       default:
         res.setHeader('Allow', ['POST']);
@@ -40,4 +42,4 @@ export default async function handler(
     console.error('API error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
-} 
+}

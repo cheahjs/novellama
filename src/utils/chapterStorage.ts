@@ -11,16 +11,30 @@ async function ensureChaptersDir(novelId: string): Promise<void> {
 }
 
 // Save a single chapter
-export async function saveChapter(novelId: string, chapter: TranslationChapter): Promise<void> {
+export async function saveChapter(
+  novelId: string,
+  chapter: TranslationChapter,
+): Promise<void> {
   await ensureChaptersDir(novelId);
-  const chapterPath = path.join(CHAPTERS_DIR, novelId, `${chapter.number}.json`);
+  const chapterPath = path.join(
+    CHAPTERS_DIR,
+    novelId,
+    `${chapter.number}.json`,
+  );
   await fs.writeFile(chapterPath, JSON.stringify(chapter, null, 2));
 }
 
 // Get a single chapter
-export async function getChapter(novelId: string, chapterNumber: number): Promise<TranslationChapter | null> {
+export async function getChapter(
+  novelId: string,
+  chapterNumber: number,
+): Promise<TranslationChapter | null> {
   try {
-    const chapterPath = path.join(CHAPTERS_DIR, novelId, `${chapterNumber}.json`);
+    const chapterPath = path.join(
+      CHAPTERS_DIR,
+      novelId,
+      `${chapterNumber}.json`,
+    );
     const data = await fs.readFile(chapterPath, 'utf-8');
     return JSON.parse(data);
   } catch (error) {
@@ -29,7 +43,11 @@ export async function getChapter(novelId: string, chapterNumber: number): Promis
 }
 
 // Get multiple chapters
-export async function getChapters(novelId: string, startNumber: number, endNumber: number): Promise<TranslationChapter[]> {
+export async function getChapters(
+  novelId: string,
+  startNumber: number,
+  endNumber: number,
+): Promise<TranslationChapter[]> {
   const chapters: TranslationChapter[] = [];
   for (let i = startNumber; i <= endNumber; i++) {
     const chapter = await getChapter(novelId, i);
@@ -41,9 +59,16 @@ export async function getChapters(novelId: string, startNumber: number, endNumbe
 }
 
 // Delete a chapter
-export async function deleteChapter(novelId: string, chapterNumber: number): Promise<void> {
+export async function deleteChapter(
+  novelId: string,
+  chapterNumber: number,
+): Promise<void> {
   try {
-    const chapterPath = path.join(CHAPTERS_DIR, novelId, `${chapterNumber}.json`);
+    const chapterPath = path.join(
+      CHAPTERS_DIR,
+      novelId,
+      `${chapterNumber}.json`,
+    );
     await fs.unlink(chapterPath);
   } catch (error) {
     // Ignore if file doesn't exist
@@ -66,8 +91,8 @@ export async function listChapters(novelId: string): Promise<number[]> {
     const novelChaptersDir = path.join(CHAPTERS_DIR, novelId);
     const files = await fs.readdir(novelChaptersDir);
     return files
-      .filter(file => file.endsWith('.json'))
-      .map(file => parseInt(file.replace('.json', '')))
+      .filter((file) => file.endsWith('.json'))
+      .map((file) => parseInt(file.replace('.json', '')))
       .sort((a, b) => a - b);
   } catch (error) {
     return [];
@@ -75,23 +100,25 @@ export async function listChapters(novelId: string): Promise<number[]> {
 }
 
 // Get chapter metadata for table of contents
-export async function getChapterMetadata(novelId: string): Promise<Array<{ number: number; title: string }>> {
+export async function getChapterMetadata(
+  novelId: string,
+): Promise<Array<{ number: number; title: string }>> {
   try {
     const novelChaptersDir = path.join(CHAPTERS_DIR, novelId);
     const files = await fs.readdir(novelChaptersDir);
-    
+
     const chapterMetadata = await Promise.all(
       files
-        .filter(file => file.endsWith('.json'))
-        .map(async file => {
+        .filter((file) => file.endsWith('.json'))
+        .map(async (file) => {
           const chapterPath = path.join(novelChaptersDir, file);
           const data = await fs.readFile(chapterPath, 'utf-8');
           const chapter = JSON.parse(data) as TranslationChapter;
           return {
             number: chapter.number,
-            title: chapter.title
+            title: chapter.title,
           };
-        })
+        }),
     );
 
     // Sort by chapter number
@@ -99,4 +126,4 @@ export async function getChapterMetadata(novelId: string): Promise<Array<{ numbe
   } catch (error) {
     return [];
   }
-} 
+}
