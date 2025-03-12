@@ -22,6 +22,7 @@ export default function TranslatePage() {
   const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isBatchTranslating, setIsBatchTranslating] = useState(false);
+  const [shouldCancelBatch, setShouldCancelBatch] = useState(false);
 
   const loadNovel = useCallback(
     async (novelId?: string) => {
@@ -188,12 +189,16 @@ export default function TranslatePage() {
     }
   };
 
-  const handleBatchTranslate = async (count: number) => {
+  const handleBatchTranslate = async (count: number, useAutoRetry: boolean) => {
     if (!novel) return;
 
     setIsBatchTranslating(true);
+    setShouldCancelBatch(false);
+
     // Find the highest chapter number that exists
-    const highestChapterNumber = novel.chapters.reduce(
+    const highestChapterNumber = (
+      novel.chapters as TranslationChapter[]
+    ).reduce(
       (max: number, chapter: TranslationChapter) =>
         Math.max(max, chapter.number),
       0,
@@ -208,6 +213,13 @@ export default function TranslatePage() {
 
     try {
       for (let i = 0; i < count; i++) {
+        // Check if we should cancel
+        if (shouldCancelBatch) {
+          toast.dismiss(toastId);
+          toast.success('Batch translation cancelled');
+          return;
+        }
+
         const targetChapterNumber = startingChapter + i;
         const progress = Math.round(((i + 1) / count) * 100);
 
@@ -242,18 +254,91 @@ export default function TranslatePage() {
         // Translate the chapter
         const sourceContent = `# ${data.title}\n\n${data.content}`;
 
-        // Translate using the API directly
-        const result = await translateContent({
-          sourceContent,
-          sourceLanguage: novel.sourceLanguage,
-          targetLanguage: novel.targetLanguage,
-          systemPrompt: novel.systemPrompt,
-          references: novel.references,
-          previousChapters: novel.chapters,
-          translationTemplate: novel.translationTemplate,
-        });
+        let finalResult;
+        if (useAutoRetry) {
+          let currentAttempt = 0;
+          const maxAttempts = 5;
+          let bestResult;
 
-        const translatedLines = result.translatedContent.split('\n');
+          while (currentAttempt < maxAttempts && !shouldCancelBatch) {
+            // Update toast with retry information
+            toast.loading(
+              `Translating chapter ${targetChapterNumber} (${i + 1}/${count}) - Attempt ${currentAttempt + 1}/5`,
+              { id: toastId },
+            );
+
+            const result = await translateContent({
+              sourceContent,
+              sourceLanguage: novel.sourceLanguage,
+              targetLanguage: novel.targetLanguage,
+              systemPrompt: novel.systemPrompt,
+              references: novel.references,
+              previousChapters: novel.chapters,
+              translationTemplate: novel.translationTemplate,
+              ...(bestResult
+                ? {
+                    previousTranslation: bestResult.translatedContent,
+                    qualityFeedback: bestResult.qualityCheck?.feedback || '',
+                    useImprovementFeedback: true,
+                  }
+                : {}),
+            });
+
+            if (
+              !bestResult ||
+              (result.qualityCheck?.score || 0) >
+                (bestResult.qualityCheck?.score || 0)
+            ) {
+              bestResult = result;
+            }
+
+            if (result.qualityCheck?.isGoodQuality) {
+              finalResult = result;
+              break;
+            }
+
+            currentAttempt++;
+          }
+
+          // Check for cancellation after the retry loop
+          if (shouldCancelBatch) {
+            toast.dismiss(toastId);
+            toast.success('Batch translation cancelled');
+            return;
+          }
+
+          finalResult =
+            bestResult ||
+            (await translateContent({
+              sourceContent,
+              sourceLanguage: novel.sourceLanguage,
+              targetLanguage: novel.targetLanguage,
+              systemPrompt: novel.systemPrompt,
+              references: novel.references,
+              previousChapters: novel.chapters,
+              translationTemplate: novel.translationTemplate,
+            }));
+        } else {
+          // Single translation attempt
+          finalResult = await translateContent({
+            sourceContent,
+            sourceLanguage: novel.sourceLanguage,
+            targetLanguage: novel.targetLanguage,
+            systemPrompt: novel.systemPrompt,
+            references: novel.references,
+            previousChapters: novel.chapters,
+            translationTemplate: novel.translationTemplate,
+          });
+        }
+
+        // Check for cancellation after translation
+        if (shouldCancelBatch) {
+          toast.dismiss(toastId);
+          toast.success('Batch translation cancelled');
+          return;
+        }
+
+        const translatedLines = finalResult.translatedContent.split('\n');
         const title = translatedLines[0].startsWith('# ')
           ? translatedLines[0].substring(2)
           : `Chapter ${targetChapterNumber}`;
@@ -263,11 +348,11 @@ export default function TranslatePage() {
           id: `chapter_${Date.now()}_${targetChapterNumber}`,
           title,
           sourceContent,
-          translatedContent: result.translatedContent,
+          translatedContent: finalResult.translatedContent,
           number: targetChapterNumber,
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          qualityCheck: result.qualityCheck,
+          qualityCheck: finalResult.qualityCheck,
         };
 
         // Save the chapter
@@ -290,7 +375,12 @@ export default function TranslatePage() {
       toast.error('Failed to complete batch translation');
     } finally {
       setIsBatchTranslating(false);
+      setShouldCancelBatch(false);
     }
+  };
+
+  const handleCancelBatchTranslate = () => {
+    setShouldCancelBatch(true);
   };
 
   const handleNavigate = (index: number) => {
@@ -434,6 +524,7 @@ export default function TranslatePage() {
           isLoading={isLoading}
           onBatchTranslate={novel?.sourceUrl ? handleBatchTranslate : undefined}
           isBatchTranslating={isBatchTranslating}
+          onCancelBatchTranslate={handleCancelBatchTranslate}
         />
 
         <ChapterNavigation

@@ -28,8 +28,9 @@ interface TranslationEditorProps {
   ) => Promise<TranslationResponse | undefined>;
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
   isLoading: boolean;
-  onBatchTranslate?: (count: number) => Promise<void>;
+  onBatchTranslate?: (count: number, useAutoRetry: boolean) => Promise<void>;
   isBatchTranslating?: boolean;
+  onCancelBatchTranslate?: () => void;
 }
 
 const TranslationEditor: React.FC<TranslationEditorProps> = ({
@@ -41,6 +42,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   isLoading,
   onBatchTranslate,
   isBatchTranslating,
+  onCancelBatchTranslate,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [sourceContent, setSourceContent] = useState<string>('');
@@ -450,20 +452,31 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   }
                   className="w-16 rounded-md bg-gray-700 px-2 py-2 text-white"
                   min="1"
+                  disabled={isBatchTranslating}
                 />
-                <button
-                  type="button"
-                  onClick={() => onBatchTranslate(batchCount)}
-                  disabled={isBatchTranslating || isLoading}
-                  className={`flex items-center rounded-md px-4 py-2 ${
-                    isBatchTranslating || isLoading
-                      ? 'cursor-not-allowed bg-gray-500'
-                      : 'bg-purple-600 text-white hover:bg-purple-700'
-                  }`}
-                >
-                  <FiPlayCircle className="mr-2" />
-                  {isBatchTranslating ? 'Processing...' : 'Batch Translate'}
-                </button>
+                {isBatchTranslating ? (
+                  <button
+                    type="button"
+                    onClick={onCancelBatchTranslate}
+                    className="flex items-center rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+                  >
+                    Cancel Batch
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onBatchTranslate(batchCount, useAutoRetry)}
+                    disabled={isLoading}
+                    className={`flex items-center rounded-md px-4 py-2 ${
+                      isLoading
+                        ? 'cursor-not-allowed bg-gray-500'
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    <FiPlayCircle className="mr-2" />
+                    Batch Translate
+                  </button>
+                )}
               </div>
             )}
           </div>
