@@ -24,10 +24,14 @@ export interface Novel {
   systemPrompt: string;
   sourceUrl: string; // URL to the novel on syosetu.com
   references: Reference[];
-  chapters: TranslationChapter[];
+  chapterCount: number; // Track total number of chapters
   createdAt: number;
   updatedAt: number;
   translationTemplate?: string;
+}
+
+export interface NovelWithChapters extends Novel {
+  chapters: TranslationChapter[];
 }
 
 export interface TranslationRequest {

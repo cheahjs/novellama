@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { FiArrowLeft, FiSettings } from 'react-icons/fi';
-import { Novel, TranslationChapter } from '@/types';
+import { Novel, TranslationChapter, NovelWithChapters } from '@/types';
 import { getNovel, saveNovel, addChapterToNovel } from '@/services/storage';
 import { translateContent } from '@/services/api';
 import TranslationEditor from '@/components/TranslationEditor';
@@ -15,7 +15,7 @@ export default function TranslatePage() {
   const router = useRouter();
   const { id, chapter } = router.query;
 
-  const [novel, setNovel] = useState<Novel | null>(null);
+  const [novel, setNovel] = useState<NovelWithChapters | null>(null);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [currentChapterNumber, setCurrentChapterNumber] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -81,19 +81,15 @@ export default function TranslatePage() {
         updatedAt: Date.now(),
       };
 
-      // Create new chapters array with updated chapter
-      const updatedChapters = [...(novel.chapters || [])];
-      updatedChapters[currentChapterIndex] = updatedChapter;
-
-      // Update the novel with the modified chapter
-      const updatedNovel = {
-        ...novel,
-        chapters: updatedChapters,
-        updatedAt: Date.now(),
-      };
-
-      await saveNovel(updatedNovel);
-      setNovel(updatedNovel);
+      // Save the updated chapter
+      await addChapterToNovel(novel.id, updatedChapter);
+      
+      // Reload the novel to get the updated chapters
+      const updatedNovel = await getNovel(novel.id);
+      if (updatedNovel) {
+        setNovel(updatedNovel);
+      }
+      
       toast.success('Changes saved successfully');
     } catch (error) {
       console.error('Failed to save changes:', error);
@@ -116,7 +112,7 @@ export default function TranslatePage() {
       // Remove the current chapter from the list of previous chapters
       const previousChapters =
         novel.chapters?.filter(
-          (chapter) => chapter.id !== currentChapter?.id,
+          (chapter: TranslationChapter) => chapter.id !== currentChapter?.id,
         ) ?? [];
       const result = await translateContent({
         sourceContent,
@@ -130,7 +126,7 @@ export default function TranslatePage() {
       const translatedLines = result.translatedContent.split('\n');
       const title = translatedLines[0].startsWith('# ')
         ? translatedLines[0].substring(2)
-        : `Chapter ${novel.chapters?.length ? novel.chapters.length + 1 : 1}`;
+        : `Chapter ${currentChapter?.number || (novel.chapters?.length ? novel.chapters.length + 1 : 1)}`;
 
       // Check if we're retranslating an existing chapter
       if (currentChapter) {
@@ -144,23 +140,18 @@ export default function TranslatePage() {
           qualityCheck: result.qualityCheck,
         };
 
-        // Create new chapters array with updated chapter
-        const updatedChapters = [...(novel.chapters || [])];
-        updatedChapters[currentChapterIndex] = updatedChapter;
-
-        // Update the novel with the modified chapter
-        const updatedNovel = {
-          ...novel,
-          chapters: updatedChapters,
-          updatedAt: Date.now(),
-        };
-        await saveNovel(updatedNovel);
-        setNovel(updatedNovel);
+        // Save the updated chapter
+        await addChapterToNovel(novel.id, updatedChapter);
+        
+        // Reload the novel to get the updated chapters
+        const updatedNovel = await getNovel(novel.id);
+        if (updatedNovel) {
+          setNovel(updatedNovel);
+        }
       } else {
         // Create a new chapter
-        const chapterNumber = novel.chapters?.length
-          ? novel.chapters.length + 1
-          : 1;
+        const chapterNumber = currentChapter?.number || 
+          (novel.chapters?.length ? novel.chapters.length + 1 : 1);
 
         const newChapter: TranslationChapter = {
           id: `chapter_${Date.now()}`,
@@ -173,10 +164,14 @@ export default function TranslatePage() {
           qualityCheck: result.qualityCheck,
         };
 
-        // Update the novel with the new chapter
+        // Save the new chapter
         await addChapterToNovel(novel.id, newChapter);
+        
         // Reload the novel to get the updated chapters
-        await loadNovel(novel.id);
+        const updatedNovel = await getNovel(novel.id);
+        if (updatedNovel) {
+          setNovel(updatedNovel);
+        }
       }
 
       toast.success('Translation complete');
@@ -194,7 +189,11 @@ export default function TranslatePage() {
     if (!novel) return;
 
     setIsBatchTranslating(true);
-    const startingChapter = (novel.chapters?.length || 0) + 1;
+    // Find the highest chapter number that exists
+    const highestChapterNumber = novel.chapters.reduce((max: number, chapter: TranslationChapter) => 
+      Math.max(max, chapter.number), 0);
+    const startingChapter = highestChapterNumber + 1;
+    
     console.log(
       `Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}`,
     );
@@ -228,7 +227,42 @@ export default function TranslatePage() {
 
         // Translate the chapter
         const sourceContent = `# ${data.title}\n\n${data.content}`;
-        await handleTranslate(sourceContent);
+        
+        // Translate using the API directly
+        const result = await translateContent({
+          sourceContent,
+          sourceLanguage: novel.sourceLanguage,
+          targetLanguage: novel.targetLanguage,
+          systemPrompt: novel.systemPrompt,
+          references: novel.references,
+          previousChapters: novel.chapters,
+        });
+
+        const translatedLines = result.translatedContent.split('\n');
+        const title = translatedLines[0].startsWith('# ')
+          ? translatedLines[0].substring(2)
+          : `Chapter ${targetChapterNumber}`;
+
+        // Create the new chapter
+        const newChapter: TranslationChapter = {
+          id: `chapter_${Date.now()}_${targetChapterNumber}`,
+          title,
+          sourceContent,
+          translatedContent: result.translatedContent,
+          number: targetChapterNumber,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          qualityCheck: result.qualityCheck,
+        };
+
+        // Save the chapter
+        await addChapterToNovel(novel.id, newChapter);
+        
+        // Reload the novel to get updated chapters
+        const updatedNovel = await getNovel(novel.id);
+        if (updatedNovel) {
+          setNovel(updatedNovel);
+        }
 
         // Show progress
         toast.success(

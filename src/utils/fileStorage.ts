@@ -1,26 +1,25 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { Novel } from '@/types';
+import { Novel, NovelWithChapters } from '@/types';
+import { getChapters, deleteNovelChapters, listChapters } from './chapterStorage';
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'novels.json');
+const WRITE_DEBOUNCE_MS = 1000;
 
-// In-memory cache
 let novelsCache: Novel[] = [];
 let lastWrite = 0;
-const WRITE_DEBOUNCE_MS = 1000; // Debounce writes by 1 second
 
-// Ensure the data directory and file exist
-async function ensureDataFile() {
+// Ensure data file exists
+async function ensureDataFile(): Promise<void> {
   try {
     await fs.access(DATA_FILE);
   } catch {
-    // If file doesn't exist, create it with empty array
     await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
-    await fs.writeFile(DATA_FILE, JSON.stringify([]));
+    await fs.writeFile(DATA_FILE, '[]');
   }
 }
 
-// Read all novels from file
+// Read all novels from file (without chapters)
 export async function readNovels(): Promise<Novel[]> {
   // Return cached novels if available
   if (novelsCache.length > 0) {
@@ -50,10 +49,26 @@ export async function writeNovels(novels: Novel[]): Promise<void> {
   await fs.writeFile(DATA_FILE, JSON.stringify(novels, null, 2));
 }
 
-// Get a single novel by ID
-export async function getNovelById(id: string): Promise<Novel | null> {
+// Get a single novel by ID with optional chapter range
+export async function getNovelById(
+  id: string,
+  chapterRange?: { start: number; end: number }
+): Promise<NovelWithChapters | null> {
   const novels = await readNovels();
-  return novels.find((novel) => novel.id === id) || null;
+  const novel = novels.find((novel) => novel.id === id);
+  
+  if (!novel) return null;
+
+  // If no chapter range is specified, get all chapters
+  if (!chapterRange) {
+    const chapterNumbers = await listChapters(id);
+    const chapters = await getChapters(id, 1, Math.max(...chapterNumbers, 0));
+    return { ...novel, chapters };
+  }
+
+  // Get specified chapter range
+  const chapters = await getChapters(id, chapterRange.start, chapterRange.end);
+  return { ...novel, chapters };
 }
 
 // Save a novel (create or update)
@@ -61,21 +76,28 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
   const novels = await readNovels();
   const index = novels.findIndex((n) => n.id === novel.id);
 
+  // Create base novel object without chapters
+  const baseNovel: Novel = {
+    ...novel,
+    updatedAt: Date.now(),
+  };
+
   if (index >= 0) {
-    novels[index] = { ...novel, updatedAt: Date.now() };
+    novels[index] = baseNovel;
   } else {
-    novels.push(novel);
+    novels.push(baseNovel);
   }
 
   await writeNovels(novels);
-  return novel;
+  return baseNovel;
 }
 
-// Delete a novel
+// Delete a novel and all its chapters
 export async function deleteNovel(id: string): Promise<void> {
   const novels = await readNovels();
   const filteredNovels = novels.filter((novel) => novel.id !== id);
   await writeNovels(filteredNovels);
+  await deleteNovelChapters(id);
 }
 
 // Clear cache (useful for testing or when needed)

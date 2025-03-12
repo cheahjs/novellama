@@ -27,23 +27,30 @@ You will be given a source text in ${sourceLanguage} and its translation in ${ta
 Evaluate the translation quality focusing on accuracy, fluency, and completeness.`;
 
     const userPrompt = `Source text (${sourceLanguage}):
+<source>
 ${sourceContent}
+</source>
 
 Translation (${targetLanguage}):
+<translation>
 ${translatedContent}
+</translation>
 
 Please evaluate the quality of this translation. Consider:
 1. Accuracy: Does it faithfully represent the original content?
 2. Fluency: Is it natural in the target language?
 3. Completeness: Was anything omitted or added inappropriately?
 
+The title must be translated, if the title translation is not related to the source content, it should be rejected.
+
+If there's extranous content in the translation, it should be rejected.
+
 Rate the translation on a scale from 0 to 10 and provide brief feedback.
 
 Return JSON in the format:
 {
     "score": <number>,
-    "feedback": "<string>",
-    "isGoodQuality": <boolean>
+    "feedback": "<string>"
 }`;
 
     const apiResponse = await axios.post(

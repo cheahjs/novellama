@@ -1,21 +1,35 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { FiBook, FiEdit, FiTrash, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { Novel } from '@/types';
-import {
-  FiBook,
-  FiEdit,
-  FiTrash,
-  FiChevronDown,
-  FiChevronUp,
-} from 'react-icons/fi';
+import { getChapterTOC } from '@/services/storage';
 
 interface NovelListProps {
   novels: Novel[];
   onDelete: (id: string) => void;
 }
 
+interface ChapterMetadata {
+  number: number;
+  title: string;
+}
+
 const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
   const [expandedNovel, setExpandedNovel] = useState<string | null>(null);
+  const [chapterTOC, setChapterTOC] = useState<Record<string, ChapterMetadata[]>>({});
+
+  useEffect(() => {
+    const loadTOC = async (novelId: string) => {
+      if (expandedNovel === novelId && !chapterTOC[novelId]) {
+        const metadata = await getChapterTOC(novelId);
+        setChapterTOC(prev => ({ ...prev, [novelId]: metadata }));
+      }
+    };
+
+    if (expandedNovel) {
+      loadTOC(expandedNovel);
+    }
+  }, [expandedNovel, chapterTOC]);
 
   if (!novels || novels.length === 0) {
     return (
@@ -40,7 +54,7 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
             {novel.sourceLanguage} → {novel.targetLanguage}
           </div>
           <div className="text-sm text-gray-500">
-            {novel.chapters?.length || 0} chapters translated
+            {novel.chapterCount || 0} chapters translated
           </div>
           <div className="mt-4 flex items-center justify-between">
             <Link
@@ -70,26 +84,24 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
               </button>
             </div>
           </div>
-          {expandedNovel === novel.id &&
-            novel.chapters &&
-            novel.chapters.length > 0 && (
-              <div className="mt-4 border-t pt-4">
-                <h4 className="mb-2 text-sm font-semibold">Chapters</h4>
-                <div className="max-h-48 overflow-y-auto">
-                  {novel.chapters.map((chapter, index) => (
-                    <Link
-                      key={index}
-                      href={`/translate/${novel.id}/${index + 1}`}
-                      className="block py-1 text-sm text-gray-600 hover:text-blue-600"
-                    >
-                      {chapter.title
-                        ? `${index + 1}: ${chapter.title}`
-                        : `Chapter ${index + 1}`}
-                    </Link>
-                  ))}
-                </div>
+          {expandedNovel === novel.id && chapterTOC[novel.id]?.length > 0 && (
+            <div className="mt-4 border-t pt-4">
+              <h4 className="mb-2 text-sm font-semibold">Chapters</h4>
+              <div className="max-h-48 overflow-y-auto">
+                {chapterTOC[novel.id].map((chapter) => (
+                  <Link
+                    key={chapter.number}
+                    href={`/translate/${novel.id}/${chapter.number}`}
+                    className="block py-1 text-sm text-gray-600 hover:text-blue-600"
+                  >
+                    {chapter.title
+                      ? `${chapter.number}: ${chapter.title}`
+                      : `Chapter ${chapter.number}`}
+                  </Link>
+                ))}
               </div>
-            )}
+            </div>
+          )}
         </div>
       ))}
     </div>

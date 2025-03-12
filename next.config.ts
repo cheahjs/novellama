@@ -14,9 +14,6 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_TOKENIZER_MODEL: process.env.TOKENIZER_MODEL || 'Xenova/gpt-4o',
     NEXT_PUBLIC_MAX_TOKENS: process.env.MAX_TOKENS ?? '16000',
   },
-  serverActions: {
-    bodySizeLimit: '100mb',
-  },
   webpack: (config) => {
     // See https://webpack.js.org/configuration/resolve/#resolvealias
     config.resolve.alias = {

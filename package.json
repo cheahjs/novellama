@@ -2,12 +2,14 @@
   "name": "novellama",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "migrate-novels": "NODE_OPTIONS='--loader ts-node/esm' ts-node --esm --project scripts/tsconfig.json scripts/migrate-novels.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
@@ -39,6 +41,7 @@
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }
