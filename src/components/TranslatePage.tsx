@@ -281,11 +281,13 @@ export default function TranslatePage() {
       }
 
       // Update toast to show completion
-      toast.success('Batch translation completed successfully', { id: toastId });
+      toast.dismiss(toastId);
+      toast.success('Batch translation completed successfully');
     } catch (error: unknown) {
       console.error('Batch translation error:', error);
       // Update toast to show error
-      toast.error('Failed to complete batch translation', { id: toastId });
+      toast.dismiss(toastId);
+      toast.error('Failed to complete batch translation');
     } finally {
       setIsBatchTranslating(false);
     }
