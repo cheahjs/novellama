@@ -1,6 +1,29 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+async function makeTranslationRequest(url: string, messages: ChatMessage[], model: string, temperature: number, apiKey: string) {
+  const response = await axios.post(
+    url,
+    {
+      model,
+      messages,
+      temperature,
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+    },
+  );
+  return response;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -12,35 +35,21 @@ export default async function handler(
   try {
     const { messages } = req.body;
     const url = `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`;
+    const model = process.env.TRANSLATION_MODEL || 'gpt-4';
+    const temperature = parseFloat(process.env.TRANSLATION_TEMPERATURE || '0.1');
+    const apiKey = process.env.OPENAI_API_KEY!;
+
     console.log('url', url);
     console.log('messages', messages);
-    console.log({
-      url,
-      body: {
-        model: process.env.TRANSLATION_MODEL || 'gpt-4',
-        messages,
-        temperature: parseFloat(process.env.TRANSLATION_TEMPERATURE || '0.1'),
-      },
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-    });
 
-    const apiResponse = await axios.post(
-      url,
-      {
-        model: process.env.TRANSLATION_MODEL || 'gpt-4',
-        messages,
-        temperature: parseFloat(process.env.TRANSLATION_TEMPERATURE || '0.1'),
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-      },
-    );
+    // First attempt
+    let apiResponse = await makeTranslationRequest(url, messages, model, temperature, apiKey);
+    
+    // Check if we hit the length limit and retry once if needed
+    if (apiResponse.data.choices[0].finish_reason === 'length') {
+      console.log('Hit length limit, retrying with the same parameters...');
+      apiResponse = await makeTranslationRequest(url, messages, model, temperature, apiKey);
+    }
 
     // Extract translation from the response
     const translation = apiResponse.data.choices[0].message.content;

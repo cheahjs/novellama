@@ -26,17 +26,29 @@ export const translateContent = async (
     if (request.previousChapters && request.previousChapters.length > 0) {
       // Format previous chunks as context
       context = request.previousChapters
-        .map((chapter) => [
-          {
-            role: 'user',
-            content: `${chapter.sourceContent}`,
-          },
-          {
-            role: 'assistant',
-            content: `${chapter.translatedContent}`,
-          },
-        ])
-        .flat();
+        .map((chapter, index) => ({
+          pair: [
+            {
+              role: 'user',
+              content: `${chapter.sourceContent}`,
+            },
+            {
+              role: 'assistant',
+              content: `${chapter.translatedContent}`,
+            },
+          ],
+          originalIndex: index,
+        }))
+        // Randomize the order of the chapters, but weight it such that it's still most likely to be in the same order as the source content
+        .sort((a, b) => {
+          // Higher bias value = stronger tendency to preserve original order
+          const bias = 3;
+          // Compare original positions, but add a smaller random component
+          return (
+            a.originalIndex - b.originalIndex + (Math.random() - 0.5) / bias
+          );
+        })
+        .flatMap((item) => item.pair);
     }
 
     // Build improvement context when retranslating with previous translation and feedback
@@ -61,10 +73,10 @@ ${request.qualityFeedback}
       'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.${improvementPrompt}\n\n${sourceContent}';
 
     const translationInstruction = translationTemplate
-      .replace('${sourceLanguage}', request.sourceLanguage)
-      .replace('${targetLanguage}', request.targetLanguage)
-      .replace('${sourceContent}', request.sourceContent)
-      .replace('${improvementPrompt}', improvementPrompt);
+      .replaceAll('${sourceLanguage}', request.sourceLanguage)
+      .replaceAll('${targetLanguage}', request.targetLanguage)
+      .replaceAll('${sourceContent}', request.sourceContent)
+      .replaceAll('${improvementPrompt}', improvementPrompt);
 
     // Create messages for the API call
     const messages = [
