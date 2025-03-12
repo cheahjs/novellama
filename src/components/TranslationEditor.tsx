@@ -60,6 +60,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [useAutoRetry, setUseAutoRetry] = useState<boolean>(false);
   const [isAutoRetrying, setIsAutoRetrying] = useState<boolean>(false);
   const [autoRetryAttempt, setAutoRetryAttempt] = useState<number>(0);
+  const [useExistingTranslation, setUseExistingTranslation] = useState<boolean>(true);
 
   useEffect(() => {
     if (currentChapter) {
@@ -116,25 +117,29 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       const maxAttempts = 5;
 
       try {
-        if (isRetranslating && useAutoRetry) {
+        if (useAutoRetry) {
           setIsAutoRetrying(true);
           let bestResult: TranslationResponse | undefined;
 
           while (currentAttempt < maxAttempts) {
             setAutoRetryAttempt(currentAttempt + 1);
-            const previousTranslationData = currentAttempt === 0 && currentChapter?.qualityCheck
-              ? {
-                  previousTranslation: currentChapter.translatedContent,
-                  qualityFeedback: currentChapter.qualityCheck.feedback,
-                  useImprovementFeedback,
-                }
+            
+            // For first attempt, respect useExistingTranslation setting
+            const previousTranslationData = currentAttempt === 0
+              ? (isRetranslating && currentChapter?.qualityCheck && useExistingTranslation)
+                ? {
+                    previousTranslation: currentChapter.translatedContent,
+                    qualityFeedback: currentChapter.qualityCheck.feedback,
+                    useImprovementFeedback,
+                  }
+                : undefined
               : bestResult
-              ? {
-                  previousTranslation: bestResult.translatedContent,
-                  qualityFeedback: bestResult.qualityCheck?.feedback || '',
-                  useImprovementFeedback: true,
-                }
-              : undefined;
+                ? {
+                    previousTranslation: bestResult.translatedContent,
+                    qualityFeedback: bestResult.qualityCheck?.feedback || '',
+                    useImprovementFeedback,
+                  }
+                : undefined;
 
             const result = await onTranslate(sourceContent, previousTranslationData);
             
@@ -158,7 +163,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         } else {
           // Regular single translation attempt
           const previousTranslationData =
-            isRetranslating && currentChapter?.qualityCheck
+            isRetranslating && currentChapter?.qualityCheck && useExistingTranslation
               ? {
                   previousTranslation: currentChapter.translatedContent,
                   qualityFeedback: currentChapter.qualityCheck.feedback,
@@ -297,50 +302,6 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               </div>
             </div>
           )}
-
-          {/* Add toggle for auto-retry when retranslating */}
-          {isRetranslating && (
-            <div className="space-y-2">
-              {currentChapter?.qualityCheck && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="useImprovementFeedback"
-                    checked={useImprovementFeedback}
-                    onChange={(e) => setUseImprovementFeedback(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
-                  />
-                  <label
-                    htmlFor="useImprovementFeedback"
-                    className="text-sm text-gray-300"
-                  >
-                    Use previous translation and feedback for improvement
-                  </label>
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="useAutoRetry"
-                  checked={useAutoRetry}
-                  onChange={(e) => setUseAutoRetry(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
-                />
-                <label
-                  htmlFor="useAutoRetry"
-                  className="text-sm text-gray-300"
-                >
-                  Auto-retry translation until good quality (max 5 attempts)
-                </label>
-              </div>
-            </div>
-          )}
-
-          {isAutoRetrying && (
-            <div className="mt-2 text-sm text-gray-400">
-              Attempt {autoRetryAttempt}/5 - Trying to achieve good quality translation...
-            </div>
-          )}
         </div>
       ) : (
         <div className="py-8 text-center text-gray-500">
@@ -374,6 +335,65 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               />
             </div>
           </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="useAutoRetry"
+                checked={useAutoRetry}
+                onChange={(e) => setUseAutoRetry(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+              />
+              <label
+                htmlFor="useAutoRetry"
+                className="text-sm text-gray-300"
+              >
+                Auto-retry translation until good quality (max 5 attempts)
+              </label>
+            </div>
+
+            {isRetranslating && currentChapter?.qualityCheck && (
+              <>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="useExistingTranslation"
+                    checked={useExistingTranslation}
+                    onChange={(e) => setUseExistingTranslation(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label
+                    htmlFor="useExistingTranslation"
+                    className="text-sm text-gray-300"
+                  >
+                    Use existing translation for first attempt
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="useImprovementFeedback"
+                    checked={useImprovementFeedback}
+                    onChange={(e) => setUseImprovementFeedback(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label
+                    htmlFor="useImprovementFeedback"
+                    className="text-sm text-gray-300"
+                  >
+                    Use feedback for improvement in retries
+                  </label>
+                </div>
+              </>
+            )}
+          </div>
+
+          {isAutoRetrying && (
+            <div className="mt-2 text-sm text-gray-400">
+              Attempt {autoRetryAttempt}/5 - Trying to achieve good quality translation...
+            </div>
+          )}
 
           <div className="flex gap-2">
             <button

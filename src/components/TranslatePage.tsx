@@ -200,14 +200,22 @@ export default function TranslatePage() {
     );
     const startingChapter = highestChapterNumber + 1;
 
-    console.log(
-      `Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}`,
+    // Create a persistent toast that we'll update throughout the process
+    const toastId = toast.loading(
+      `Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}...`,
+      { duration: Infinity }
     );
 
     try {
       for (let i = 0; i < count; i++) {
         const targetChapterNumber = startingChapter + i;
-        console.log(`Translating chapter ${targetChapterNumber}...`);
+        const progress = Math.round(((i + 1) / count) * 100);
+        
+        // Update toast with current progress
+        toast.loading(
+          `Translating chapter ${targetChapterNumber} (${i + 1}/${count}) - ${progress}% complete`,
+          { id: toastId }
+        );
 
         // Scrape the next chapter
         const response = await fetch('/api/scrape', {
@@ -270,17 +278,14 @@ export default function TranslatePage() {
         if (updatedNovel) {
           setNovel(updatedNovel);
         }
-
-        // Show progress
-        toast.success(
-          `Completed chapter ${targetChapterNumber} (${i + 1} of ${count})`,
-        );
       }
 
-      toast.success('Batch translation completed');
+      // Update toast to show completion
+      toast.success('Batch translation completed successfully', { id: toastId });
     } catch (error: unknown) {
       console.error('Batch translation error:', error);
-      toast.error('Failed to complete batch translation');
+      // Update toast to show error
+      toast.error('Failed to complete batch translation', { id: toastId });
     } finally {
       setIsBatchTranslating(false);
     }
