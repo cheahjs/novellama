@@ -42,7 +42,7 @@ export const translateContent = async (
         // Randomize the order of the chapters, but weight it such that it's still most likely to be in the same order as the source content
         .sort((a, b) => {
           // Higher bias value = stronger tendency to preserve original order
-          const bias = 3;
+          const bias = 8;
           // Compare original positions, but add a smaller random component
           return (
             a.originalIndex - b.originalIndex + (Math.random() - 0.5) / bias

@@ -1,27 +1,70 @@
-import fs from 'fs/promises';
-import path from 'path';
 import { TranslationChapter } from '@/types';
-
-const CHAPTERS_DIR = path.join(process.cwd(), 'data', 'chapters');
-
-// Ensure the chapters directory exists
-async function ensureChaptersDir(novelId: string): Promise<void> {
-  const novelChaptersDir = path.join(CHAPTERS_DIR, novelId);
-  await fs.mkdir(novelChaptersDir, { recursive: true });
-}
+import getDb from './db';
+import { nanoid } from 'nanoid';
 
 // Save a single chapter
 export async function saveChapter(
   novelId: string,
   chapter: TranslationChapter,
 ): Promise<void> {
-  await ensureChaptersDir(novelId);
-  const chapterPath = path.join(
-    CHAPTERS_DIR,
-    novelId,
-    `${chapter.number}.json`,
-  );
-  await fs.writeFile(chapterPath, JSON.stringify(chapter, null, 2));
+  const db = getDb();
+  const now = Date.now();
+
+  // Start transaction
+  const transaction = db.transaction((chapter: TranslationChapter) => {
+    // Insert or update chapter
+    db.prepare(`
+      INSERT INTO chapters (
+        id, novelId, number, title,
+        sourceContent, translatedContent,
+        createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(novelId, number) DO UPDATE SET
+        title = excluded.title,
+        sourceContent = excluded.sourceContent,
+        translatedContent = excluded.translatedContent,
+        updatedAt = excluded.updatedAt
+    `).run(
+      chapter.id || nanoid(),
+      novelId,
+      chapter.number,
+      chapter.title,
+      chapter.sourceContent,
+      chapter.translatedContent,
+      chapter.createdAt || now,
+      now
+    );
+
+    // If there's a quality check, save it
+    if (chapter.qualityCheck) {
+      db.prepare(`
+        INSERT INTO quality_checks (
+          chapterId, score, feedback,
+          isGoodQuality, createdAt
+        ) VALUES (?, ?, ?, ?, ?)
+      `).run(
+        chapter.id,
+        chapter.qualityCheck.score,
+        chapter.qualityCheck.feedback,
+        chapter.qualityCheck.isGoodQuality ? 1 : 0,
+        now
+      );
+    }
+
+    // Update novel's chapter count
+    const chapterCount = db.prepare(`
+      SELECT COUNT(*) as count FROM chapters WHERE novelId = ?
+    `).get(novelId) as { count: number };
+
+    db.prepare(`
+      UPDATE novels 
+      SET chapterCount = ?, updatedAt = ?
+      WHERE id = ?
+    `).run(chapterCount.count, now, novelId);
+  });
+
+  // Execute transaction
+  transaction(chapter);
 }
 
 // Get a single chapter
@@ -29,17 +72,34 @@ export async function getChapter(
   novelId: string,
   chapterNumber: number,
 ): Promise<TranslationChapter | null> {
-  try {
-    const chapterPath = path.join(
-      CHAPTERS_DIR,
-      novelId,
-      `${chapterNumber}.json`,
-    );
-    const data = await fs.readFile(chapterPath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return null;
+  const db = getDb();
+
+  // Get chapter
+  const chapter = db.prepare(`
+    SELECT * FROM chapters 
+    WHERE novelId = ? AND number = ?
+  `).get(novelId, chapterNumber) as TranslationChapter | undefined;
+
+  if (!chapter) return null;
+
+  // Get latest quality check
+  const qualityCheck = db.prepare(`
+    SELECT score, feedback, isGoodQuality
+    FROM quality_checks 
+    WHERE chapterId = ?
+    ORDER BY createdAt DESC
+    LIMIT 1
+  `).get(chapter.id) as { score: number; feedback: string; isGoodQuality: number } | undefined;
+
+  if (qualityCheck) {
+    chapter.qualityCheck = {
+      score: qualityCheck.score,
+      feedback: qualityCheck.feedback,
+      isGoodQuality: Boolean(qualityCheck.isGoodQuality),
+    };
   }
+
+  return chapter;
 }
 
 // Get multiple chapters
@@ -48,13 +108,34 @@ export async function getChapters(
   startNumber: number,
   endNumber: number,
 ): Promise<TranslationChapter[]> {
-  const chapters: TranslationChapter[] = [];
-  for (let i = startNumber; i <= endNumber; i++) {
-    const chapter = await getChapter(novelId, i);
-    if (chapter) {
-      chapters.push(chapter);
+  const db = getDb();
+
+  // Get chapters
+  const chapters = db.prepare(`
+    SELECT * FROM chapters 
+    WHERE novelId = ? AND number BETWEEN ? AND ?
+    ORDER BY number
+  `).all(novelId, startNumber, endNumber) as TranslationChapter[];
+
+  // Get quality checks for each chapter
+  for (const chapter of chapters) {
+    const qualityCheck = db.prepare(`
+      SELECT score, feedback, isGoodQuality
+      FROM quality_checks 
+      WHERE chapterId = ?
+      ORDER BY createdAt DESC
+      LIMIT 1
+    `).get(chapter.id) as { score: number; feedback: string; isGoodQuality: number } | undefined;
+
+    if (qualityCheck) {
+      chapter.qualityCheck = {
+        score: qualityCheck.score,
+        feedback: qualityCheck.feedback,
+        isGoodQuality: Boolean(qualityCheck.isGoodQuality),
+      };
     }
   }
+
   return chapters;
 }
 
@@ -63,67 +144,64 @@ export async function deleteChapter(
   novelId: string,
   chapterNumber: number,
 ): Promise<void> {
-  try {
-    const chapterPath = path.join(
-      CHAPTERS_DIR,
-      novelId,
-      `${chapterNumber}.json`,
-    );
-    await fs.unlink(chapterPath);
-  } catch (error) {
-    // Ignore if file doesn't exist
-  }
+  const db = getDb();
+  const now = Date.now();
+
+  // Start transaction
+  const transaction = db.transaction(() => {
+    // Delete chapter (quality checks will be deleted by foreign key constraint)
+    db.prepare(`
+      DELETE FROM chapters 
+      WHERE novelId = ? AND number = ?
+    `).run(novelId, chapterNumber);
+
+    // Update novel's chapter count
+    const chapterCount = db.prepare(`
+      SELECT COUNT(*) as count FROM chapters WHERE novelId = ?
+    `).get(novelId) as { count: number };
+
+    db.prepare(`
+      UPDATE novels 
+      SET chapterCount = ?, updatedAt = ?
+      WHERE id = ?
+    `).run(chapterCount.count, now, novelId);
+  });
+
+  // Execute transaction
+  transaction();
 }
 
 // Delete all chapters for a novel
 export async function deleteNovelChapters(novelId: string): Promise<void> {
-  try {
-    const novelChaptersDir = path.join(CHAPTERS_DIR, novelId);
-    await fs.rm(novelChaptersDir, { recursive: true, force: true });
-  } catch (error) {
-    // Ignore if directory doesn't exist
-  }
+  const db = getDb();
+
+  // Delete all chapters (quality checks will be deleted by foreign key constraint)
+  db.prepare(`DELETE FROM chapters WHERE novelId = ?`).run(novelId);
 }
 
 // List all chapters for a novel
 export async function listChapters(novelId: string): Promise<number[]> {
-  try {
-    const novelChaptersDir = path.join(CHAPTERS_DIR, novelId);
-    const files = await fs.readdir(novelChaptersDir);
-    return files
-      .filter((file) => file.endsWith('.json'))
-      .map((file) => parseInt(file.replace('.json', '')))
-      .sort((a, b) => a - b);
-  } catch (error) {
-    return [];
-  }
+  const db = getDb();
+
+  const chapters = db.prepare(`
+    SELECT number FROM chapters 
+    WHERE novelId = ?
+    ORDER BY number
+  `).all(novelId) as { number: number }[];
+
+  return chapters.map(chapter => chapter.number);
 }
 
 // Get chapter metadata for table of contents
 export async function getChapterMetadata(
   novelId: string,
 ): Promise<Array<{ number: number; title: string }>> {
-  try {
-    const novelChaptersDir = path.join(CHAPTERS_DIR, novelId);
-    const files = await fs.readdir(novelChaptersDir);
+  const db = getDb();
 
-    const chapterMetadata = await Promise.all(
-      files
-        .filter((file) => file.endsWith('.json'))
-        .map(async (file) => {
-          const chapterPath = path.join(novelChaptersDir, file);
-          const data = await fs.readFile(chapterPath, 'utf-8');
-          const chapter = JSON.parse(data) as TranslationChapter;
-          return {
-            number: chapter.number,
-            title: chapter.title,
-          };
-        }),
-    );
-
-    // Sort by chapter number
-    return chapterMetadata.sort((a, b) => a.number - b.number);
-  } catch (error) {
-    return [];
-  }
+  return db.prepare(`
+    SELECT number, title 
+    FROM chapters 
+    WHERE novelId = ?
+    ORDER BY number
+  `).all(novelId) as Array<{ number: number; title: string }>;
 }

@@ -20,9 +20,46 @@ export default async function handler(
   try {
     const { sourceContent, translatedContent, sourceLanguage, targetLanguage } =
       req.body as QualityCheckRequest;
-    const url = `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`;
+    
+    // Try to get quality check, with one retry on JSON parse error
+    const qualityCheck = await getQualityCheck(
+      sourceContent,
+      translatedContent,
+      sourceLanguage,
+      targetLanguage
+    );
 
-    const systemPrompt = `You are a professional translator quality checker. 
+    return res.status(200).json(qualityCheck);
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      console.error('API error:', error.response?.data || error.message);
+      return res.status(500).json({
+        message: 'Error processing quality check',
+        error: error.message,
+      });
+    }
+    const message = error instanceof Error ? error.message : `${error}`;
+    console.error('Error processing quality check', {
+      error,
+      message,
+    });
+    return res.status(500).json({
+      message: 'Error processing quality check',
+      error: message,
+    });
+  }
+}
+
+async function getQualityCheck(
+  sourceContent: string,
+  translatedContent: string,
+  sourceLanguage: string,
+  targetLanguage: string,
+  retryCount = 0
+): Promise<QualityCheckResponse> {
+  const url = `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`;
+
+  const systemPrompt = `You are a professional translator quality checker. 
 You will be given a source text in ${sourceLanguage} and its translation in ${targetLanguage}.
 Evaluate the translation quality focusing on accuracy, fluency, and completeness.
 
@@ -41,7 +78,7 @@ Return JSON in the format:
     "feedback": "<string>"
 }`;
 
-    const userPrompt = `Source text (${sourceLanguage}):
+  const userPrompt = `Source text (${sourceLanguage}):
 <source>
 ${sourceContent}
 </source>
@@ -52,6 +89,7 @@ ${translatedContent}
 </translation>
 `;
 
+  try {
     const apiResponse = await axios.post(
       url,
       {
@@ -90,33 +128,35 @@ ${translatedContent}
       usage: apiResponse.data.usage,
     });
 
-    // Parse the response
-    const responseContent = JSON.parse(
-      apiResponse.data.choices[0].message.content,
-    );
-    const qualityCheck: QualityCheckResponse = {
-      isGoodQuality: responseContent.score >= 7,
-      score: responseContent.score,
-      feedback: responseContent.feedback || responseContent.evaluation || '',
-    };
-
-    return res.status(200).json(qualityCheck);
-  } catch (error: unknown) {
-    if (axios.isAxiosError(error)) {
-      console.error('API error:', error.response?.data || error.message);
-      return res.status(500).json({
-        message: 'Error processing quality check',
-        error: error.message,
-      });
+    try {
+      // Parse the response
+      const responseContent = JSON.parse(
+        apiResponse.data.choices[0].message.content,
+      );
+      
+      return {
+        isGoodQuality: responseContent.score >= 7,
+        score: responseContent.score,
+        feedback: responseContent.feedback || responseContent.evaluation || '',
+      };
+    } catch (parseError) {
+      // If this is the first attempt and there's a JSON parsing error, retry once
+      if (retryCount === 0) {
+        console.warn('JSON parse error, retrying quality check request', parseError);
+        return getQualityCheck(
+          sourceContent,
+          translatedContent,
+          sourceLanguage,
+          targetLanguage,
+          1
+        );
+      }
+      
+      // If we've already retried, throw the error
+      throw new Error(`Failed to parse quality check response: ${parseError}`);
     }
-    const message = error instanceof Error ? error.message : `${error}`;
-    console.error('Error processing quality check', {
-      error,
-      message,
-    });
-    return res.status(500).json({
-      message: 'Error processing quality check',
-      error: message,
-    });
+  } catch (error) {
+    // Rethrow any other errors
+    throw error;
   }
 }

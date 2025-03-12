@@ -6,7 +6,13 @@ interface ChatMessage {
   content: string;
 }
 
-async function makeTranslationRequest(url: string, messages: ChatMessage[], model: string, temperature: number, apiKey: string) {
+async function makeTranslationRequest(
+  url: string,
+  messages: ChatMessage[],
+  model: string,
+  temperature: number,
+  apiKey: string,
+) {
   const response = await axios.post(
     url,
     {
@@ -36,19 +42,34 @@ export default async function handler(
     const { messages } = req.body;
     const url = `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`;
     const model = process.env.TRANSLATION_MODEL || 'gpt-4';
-    const temperature = parseFloat(process.env.TRANSLATION_TEMPERATURE || '0.1');
+    const temperature = parseFloat(
+      process.env.TRANSLATION_TEMPERATURE || '0.1',
+    );
     const apiKey = process.env.OPENAI_API_KEY!;
 
-    console.log('url', url);
-    console.log('messages', messages);
+    console.log(
+      `Making translation request with ${messages.length} messages (model: ${model}, temperature: ${temperature})`,
+    );
 
     // First attempt
-    let apiResponse = await makeTranslationRequest(url, messages, model, temperature, apiKey);
-    
+    let apiResponse = await makeTranslationRequest(
+      url,
+      messages,
+      model,
+      temperature,
+      apiKey,
+    );
+
     // Check if we hit the length limit and retry once if needed
     if (apiResponse.data.choices[0].finish_reason === 'length') {
       console.log('Hit length limit, retrying with the same parameters...');
-      apiResponse = await makeTranslationRequest(url, messages, model, temperature, apiKey);
+      apiResponse = await makeTranslationRequest(
+        url,
+        messages,
+        model,
+        temperature,
+        apiKey,
+      );
     }
 
     // Extract translation from the response

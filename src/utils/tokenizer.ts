@@ -33,7 +33,7 @@ export async function countMessagesTokens(
   if (!enc) {
     throw new Error('Tokenizer not initialized');
   }
-  console.log('encoding', { enc, messages });
+  console.log('counting tokens', { enc, messages });
   const result = enc.apply_chat_template(messages, {
     tokenize: true,
     return_tensor: false,

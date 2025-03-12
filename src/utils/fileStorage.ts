@@ -1,56 +1,25 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { Novel, NovelWithChapters } from '@/types';
-import {
-  getChapters,
-  deleteNovelChapters,
-  listChapters,
-} from './chapterStorage';
+import { Novel, NovelWithChapters, Reference, TranslationChapter } from '@/types';
+import getDb from './db';
 
-const DATA_FILE = path.join(process.cwd(), 'data', 'novels.json');
-const WRITE_DEBOUNCE_MS = 1000;
-
-let novelsCache: Novel[] = [];
-let lastWrite = 0;
-
-// Ensure data file exists
-async function ensureDataFile(): Promise<void> {
-  try {
-    await fs.access(DATA_FILE);
-  } catch {
-    await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
-    await fs.writeFile(DATA_FILE, '[]');
-  }
-}
-
-// Read all novels from file (without chapters)
+// Read all novels from database (without chapters)
 export async function readNovels(): Promise<Novel[]> {
-  // Return cached novels if available
-  if (novelsCache.length > 0) {
-    return novelsCache;
+  const db = getDb();
+  const novels = db.prepare(`
+    SELECT n.*, COUNT(r.id) as referenceCount
+    FROM novels n
+    LEFT JOIN "references" r ON n.id = r.novelId
+    GROUP BY n.id
+  `).all() as Novel[];
+
+  // Fetch references for each novel
+  for (const novel of novels) {
+    const references = db.prepare(`
+      SELECT * FROM "references" WHERE novelId = ?
+    `).all(novel.id) as Reference[];
+    novel.references = references;
   }
 
-  await ensureDataFile();
-  const data = await fs.readFile(DATA_FILE, 'utf-8');
-  novelsCache = JSON.parse(data);
-  return novelsCache;
-}
-
-// Write novels to file with debouncing
-export async function writeNovels(novels: Novel[]): Promise<void> {
-  await ensureDataFile();
-
-  // Update cache immediately
-  novelsCache = novels;
-
-  // Debounce disk writes
-  const now = Date.now();
-  if (now - lastWrite < WRITE_DEBOUNCE_MS) {
-    return;
-  }
-
-  lastWrite = now;
-  await fs.writeFile(DATA_FILE, JSON.stringify(novels, null, 2));
+  return novels;
 }
 
 // Get a single novel by ID with optional chapter range
@@ -58,54 +27,129 @@ export async function getNovelById(
   id: string,
   chapterRange?: { start: number; end: number },
 ): Promise<NovelWithChapters | null> {
-  const novels = await readNovels();
-  const novel = novels.find((novel) => novel.id === id);
+  const db = getDb();
+  
+  // Get novel
+  const novel = db.prepare(`
+    SELECT * FROM novels WHERE id = ?
+  `).get(id) as Novel | undefined;
 
   if (!novel) return null;
 
-  // If no chapter range is specified, get all chapters
-  if (!chapterRange) {
-    const chapterNumbers = await listChapters(id);
-    const chapters = await getChapters(id, 1, Math.max(...chapterNumbers, 0));
-    return { ...novel, chapters };
+  // Get references
+  novel.references = db.prepare(`
+    SELECT * FROM "references" WHERE novelId = ?
+  `).all(id) as Reference[];
+
+  // Get chapters based on range
+  let chaptersQuery = `
+    SELECT * FROM chapters 
+    WHERE novelId = ?
+  `;
+  
+  const params: (string | number)[] = [id];
+  
+  if (chapterRange) {
+    chaptersQuery += ` AND number BETWEEN ? AND ?`;
+    params.push(chapterRange.start, chapterRange.end);
+  }
+  
+  chaptersQuery += ` ORDER BY number`;
+  
+  const chapters = db.prepare(chaptersQuery).all(...params) as TranslationChapter[];
+
+  // Get quality checks for chapters
+  for (const chapter of chapters) {
+    const qualityCheck = db.prepare(`
+      SELECT * FROM quality_checks 
+      WHERE chapterId = ?
+      ORDER BY createdAt DESC
+      LIMIT 1
+    `).get(chapter.id) as { score: number; feedback: string; isGoodQuality: boolean } | undefined;
+    
+    if (qualityCheck) {
+      chapter.qualityCheck = {
+        isGoodQuality: qualityCheck.isGoodQuality,
+        score: qualityCheck.score,
+        feedback: qualityCheck.feedback,
+      };
+    }
   }
 
-  // Get specified chapter range
-  const chapters = await getChapters(id, chapterRange.start, chapterRange.end);
   return { ...novel, chapters };
 }
 
 // Save a novel (create or update)
 export async function saveNovel(novel: Novel): Promise<Novel> {
-  const novels = await readNovels();
-  const index = novels.findIndex((n) => n.id === novel.id);
+  const db = getDb();
+  const now = Date.now();
 
-  // Create base novel object without chapters
-  const baseNovel: Novel = {
-    ...novel,
-    updatedAt: Date.now(),
-  };
+  // Start transaction
+  const transaction = db.transaction((novel: Novel) => {
+    // Upsert novel
+    db.prepare(`
+      INSERT INTO novels (
+        id, title, sourceLanguage, targetLanguage,
+        systemPrompt, sourceUrl, translationTemplate,
+        chapterCount, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        sourceLanguage = excluded.sourceLanguage,
+        targetLanguage = excluded.targetLanguage,
+        systemPrompt = excluded.systemPrompt,
+        sourceUrl = excluded.sourceUrl,
+        translationTemplate = excluded.translationTemplate,
+        chapterCount = excluded.chapterCount,
+        updatedAt = excluded.updatedAt
+    `).run(
+      novel.id,
+      novel.title,
+      novel.sourceLanguage,
+      novel.targetLanguage,
+      novel.systemPrompt,
+      novel.sourceUrl,
+      novel.translationTemplate || null,
+      novel.chapterCount || 0,
+      now,
+      now
+    );
 
-  if (index >= 0) {
-    novels[index] = baseNovel;
-  } else {
-    novels.push(baseNovel);
-  }
+    // Delete existing references
+    db.prepare(`DELETE FROM "references" WHERE novelId = ?`).run(novel.id);
 
-  await writeNovels(novels);
-  return baseNovel;
+    // Insert new references
+    const insertReference = db.prepare(`
+      INSERT INTO "references" (id, novelId, title, content, tokenCount)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    for (const ref of novel.references) {
+      insertReference.run(
+        ref.id,
+        novel.id,
+        ref.title,
+        ref.content,
+        ref.tokenCount || null
+      );
+    }
+
+    return novel;
+  });
+
+  // Execute transaction
+  return transaction(novel);
 }
 
-// Delete a novel and all its chapters
+// Delete a novel and all its associated data
 export async function deleteNovel(id: string): Promise<void> {
-  const novels = await readNovels();
-  const filteredNovels = novels.filter((novel) => novel.id !== id);
-  await writeNovels(filteredNovels);
-  await deleteNovelChapters(id);
+  const db = getDb();
+  
+  // The foreign key constraints will handle cascading deletes
+  db.prepare(`DELETE FROM novels WHERE id = ?`).run(id);
 }
 
-// Clear cache (useful for testing or when needed)
+// Clear cache (no longer needed with SQLite)
 export function clearCache(): void {
-  novelsCache = [];
-  lastWrite = 0;
+  // No-op as we don't use caching with SQLite
 }
