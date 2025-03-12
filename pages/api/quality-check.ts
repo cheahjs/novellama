@@ -135,7 +135,7 @@ ${translatedContent}
       );
 
       return {
-        isGoodQuality: responseContent.score >= 7,
+        isGoodQuality: responseContent.score > 7,
         score: responseContent.score,
         feedback: responseContent.feedback || responseContent.evaluation || '',
       };
