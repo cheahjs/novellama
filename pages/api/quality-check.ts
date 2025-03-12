@@ -20,13 +20,13 @@ export default async function handler(
   try {
     const { sourceContent, translatedContent, sourceLanguage, targetLanguage } =
       req.body as QualityCheckRequest;
-    
+
     // Try to get quality check, with one retry on JSON parse error
     const qualityCheck = await getQualityCheck(
       sourceContent,
       translatedContent,
       sourceLanguage,
-      targetLanguage
+      targetLanguage,
     );
 
     return res.status(200).json(qualityCheck);
@@ -55,7 +55,7 @@ async function getQualityCheck(
   translatedContent: string,
   sourceLanguage: string,
   targetLanguage: string,
-  retryCount = 0
+  retryCount = 0,
 ): Promise<QualityCheckResponse> {
   const url = `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`;
 
@@ -133,7 +133,7 @@ ${translatedContent}
       const responseContent = JSON.parse(
         apiResponse.data.choices[0].message.content,
       );
-      
+
       return {
         isGoodQuality: responseContent.score >= 7,
         score: responseContent.score,
@@ -142,16 +142,19 @@ ${translatedContent}
     } catch (parseError) {
       // If this is the first attempt and there's a JSON parsing error, retry once
       if (retryCount === 0) {
-        console.warn('JSON parse error, retrying quality check request', parseError);
+        console.warn(
+          'JSON parse error, retrying quality check request',
+          parseError,
+        );
         return getQualityCheck(
           sourceContent,
           translatedContent,
           sourceLanguage,
           targetLanguage,
-          1
+          1,
         );
       }
-      
+
       // If we've already retried, throw the error
       throw new Error(`Failed to parse quality check response: ${parseError}`);
     }

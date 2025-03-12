@@ -203,18 +203,18 @@ export default function TranslatePage() {
     // Create a persistent toast that we'll update throughout the process
     const toastId = toast.loading(
       `Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}...`,
-      { duration: Infinity }
+      { duration: Infinity },
     );
 
     try {
       for (let i = 0; i < count; i++) {
         const targetChapterNumber = startingChapter + i;
         const progress = Math.round(((i + 1) / count) * 100);
-        
+
         // Update toast with current progress
         toast.loading(
           `Translating chapter ${targetChapterNumber} (${i + 1}/${count}) - ${progress}% complete`,
-          { id: toastId }
+          { id: toastId },
         );
 
         // Scrape the next chapter

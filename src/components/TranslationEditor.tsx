@@ -60,7 +60,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [useAutoRetry, setUseAutoRetry] = useState<boolean>(false);
   const [isAutoRetrying, setIsAutoRetrying] = useState<boolean>(false);
   const [autoRetryAttempt, setAutoRetryAttempt] = useState<number>(0);
-  const [useExistingTranslation, setUseExistingTranslation] = useState<boolean>(true);
+  const [useExistingTranslation, setUseExistingTranslation] =
+    useState<boolean>(true);
 
   useEffect(() => {
     if (currentChapter) {
@@ -123,29 +124,39 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
           while (currentAttempt < maxAttempts) {
             setAutoRetryAttempt(currentAttempt + 1);
-            
-            // For first attempt, respect useExistingTranslation setting
-            const previousTranslationData = currentAttempt === 0
-              ? (isRetranslating && currentChapter?.qualityCheck && useExistingTranslation)
-                ? {
-                    previousTranslation: currentChapter.translatedContent,
-                    qualityFeedback: currentChapter.qualityCheck.feedback,
-                    useImprovementFeedback,
-                  }
-                : undefined
-              : bestResult
-                ? {
-                    previousTranslation: bestResult.translatedContent,
-                    qualityFeedback: bestResult.qualityCheck?.feedback || '',
-                    useImprovementFeedback,
-                  }
-                : undefined;
 
-            const result = await onTranslate(sourceContent, previousTranslationData);
-            
+            // For first attempt, respect useExistingTranslation setting
+            const previousTranslationData =
+              currentAttempt === 0
+                ? isRetranslating &&
+                  currentChapter?.qualityCheck &&
+                  useExistingTranslation
+                  ? {
+                      previousTranslation: currentChapter.translatedContent,
+                      qualityFeedback: currentChapter.qualityCheck.feedback,
+                      useImprovementFeedback,
+                    }
+                  : undefined
+                : bestResult
+                  ? {
+                      previousTranslation: bestResult.translatedContent,
+                      qualityFeedback: bestResult.qualityCheck?.feedback || '',
+                      useImprovementFeedback,
+                    }
+                  : undefined;
+
+            const result = await onTranslate(
+              sourceContent,
+              previousTranslationData,
+            );
+
             if (!result) break;
 
-            if (!bestResult || (result.qualityCheck?.score || 0) > (bestResult.qualityCheck?.score || 0)) {
+            if (
+              !bestResult ||
+              (result.qualityCheck?.score || 0) >
+                (bestResult.qualityCheck?.score || 0)
+            ) {
               bestResult = result;
             }
 
@@ -163,7 +174,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         } else {
           // Regular single translation attempt
           const previousTranslationData =
-            isRetranslating && currentChapter?.qualityCheck && useExistingTranslation
+            isRetranslating &&
+            currentChapter?.qualityCheck &&
+            useExistingTranslation
               ? {
                   previousTranslation: currentChapter.translatedContent,
                   qualityFeedback: currentChapter.qualityCheck.feedback,
@@ -171,7 +184,10 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                 }
               : undefined;
 
-          finalResult = await onTranslate(sourceContent, previousTranslationData);
+          finalResult = await onTranslate(
+            sourceContent,
+            previousTranslationData,
+          );
         }
 
         if (finalResult) {
@@ -345,10 +361,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                 onChange={(e) => setUseAutoRetry(e.target.checked)}
                 className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
               />
-              <label
-                htmlFor="useAutoRetry"
-                className="text-sm text-gray-300"
-              >
+              <label htmlFor="useAutoRetry" className="text-sm text-gray-300">
                 Auto-retry translation until good quality (max 5 attempts)
               </label>
             </div>
@@ -360,7 +373,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                     type="checkbox"
                     id="useExistingTranslation"
                     checked={useExistingTranslation}
-                    onChange={(e) => setUseExistingTranslation(e.target.checked)}
+                    onChange={(e) =>
+                      setUseExistingTranslation(e.target.checked)
+                    }
                     className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
                   />
                   <label
@@ -375,7 +390,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                     type="checkbox"
                     id="useImprovementFeedback"
                     checked={useImprovementFeedback}
-                    onChange={(e) => setUseImprovementFeedback(e.target.checked)}
+                    onChange={(e) =>
+                      setUseImprovementFeedback(e.target.checked)
+                    }
                     className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
                   />
                   <label
@@ -391,7 +408,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
           {isAutoRetrying && (
             <div className="mt-2 text-sm text-gray-400">
-              Attempt {autoRetryAttempt}/5 - Trying to achieve good quality translation...
+              Attempt {autoRetryAttempt}/5 - Trying to achieve good quality
+              translation...
             </div>
           )}
 

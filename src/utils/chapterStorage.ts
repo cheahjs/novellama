@@ -13,7 +13,8 @@ export async function saveChapter(
   // Start transaction
   const transaction = db.transaction((chapter: TranslationChapter) => {
     // Insert or update chapter
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO chapters (
         id, novelId, number, title,
         sourceContent, translatedContent,
@@ -24,7 +25,8 @@ export async function saveChapter(
         sourceContent = excluded.sourceContent,
         translatedContent = excluded.translatedContent,
         updatedAt = excluded.updatedAt
-    `).run(
+    `,
+    ).run(
       chapter.id || nanoid(),
       novelId,
       chapter.number,
@@ -32,35 +34,43 @@ export async function saveChapter(
       chapter.sourceContent,
       chapter.translatedContent,
       chapter.createdAt || now,
-      now
+      now,
     );
 
     // If there's a quality check, save it
     if (chapter.qualityCheck) {
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO quality_checks (
           chapterId, score, feedback,
           isGoodQuality, createdAt
         ) VALUES (?, ?, ?, ?, ?)
-      `).run(
+      `,
+      ).run(
         chapter.id,
         chapter.qualityCheck.score,
         chapter.qualityCheck.feedback,
         chapter.qualityCheck.isGoodQuality ? 1 : 0,
-        now
+        now,
       );
     }
 
     // Update novel's chapter count
-    const chapterCount = db.prepare(`
+    const chapterCount = db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM chapters WHERE novelId = ?
-    `).get(novelId) as { count: number };
+    `,
+      )
+      .get(novelId) as { count: number };
 
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE novels 
       SET chapterCount = ?, updatedAt = ?
       WHERE id = ?
-    `).run(chapterCount.count, now, novelId);
+    `,
+    ).run(chapterCount.count, now, novelId);
   });
 
   // Execute transaction
@@ -75,21 +85,31 @@ export async function getChapter(
   const db = getDb();
 
   // Get chapter
-  const chapter = db.prepare(`
+  const chapter = db
+    .prepare(
+      `
     SELECT * FROM chapters 
     WHERE novelId = ? AND number = ?
-  `).get(novelId, chapterNumber) as TranslationChapter | undefined;
+  `,
+    )
+    .get(novelId, chapterNumber) as TranslationChapter | undefined;
 
   if (!chapter) return null;
 
   // Get latest quality check
-  const qualityCheck = db.prepare(`
+  const qualityCheck = db
+    .prepare(
+      `
     SELECT score, feedback, isGoodQuality
     FROM quality_checks 
     WHERE chapterId = ?
     ORDER BY createdAt DESC
     LIMIT 1
-  `).get(chapter.id) as { score: number; feedback: string; isGoodQuality: number } | undefined;
+  `,
+    )
+    .get(chapter.id) as
+    | { score: number; feedback: string; isGoodQuality: number }
+    | undefined;
 
   if (qualityCheck) {
     chapter.qualityCheck = {
@@ -111,21 +131,31 @@ export async function getChapters(
   const db = getDb();
 
   // Get chapters
-  const chapters = db.prepare(`
+  const chapters = db
+    .prepare(
+      `
     SELECT * FROM chapters 
     WHERE novelId = ? AND number BETWEEN ? AND ?
     ORDER BY number
-  `).all(novelId, startNumber, endNumber) as TranslationChapter[];
+  `,
+    )
+    .all(novelId, startNumber, endNumber) as TranslationChapter[];
 
   // Get quality checks for each chapter
   for (const chapter of chapters) {
-    const qualityCheck = db.prepare(`
+    const qualityCheck = db
+      .prepare(
+        `
       SELECT score, feedback, isGoodQuality
       FROM quality_checks 
       WHERE chapterId = ?
       ORDER BY createdAt DESC
       LIMIT 1
-    `).get(chapter.id) as { score: number; feedback: string; isGoodQuality: number } | undefined;
+    `,
+      )
+      .get(chapter.id) as
+      | { score: number; feedback: string; isGoodQuality: number }
+      | undefined;
 
     if (qualityCheck) {
       chapter.qualityCheck = {
@@ -150,21 +180,29 @@ export async function deleteChapter(
   // Start transaction
   const transaction = db.transaction(() => {
     // Delete chapter (quality checks will be deleted by foreign key constraint)
-    db.prepare(`
+    db.prepare(
+      `
       DELETE FROM chapters 
       WHERE novelId = ? AND number = ?
-    `).run(novelId, chapterNumber);
+    `,
+    ).run(novelId, chapterNumber);
 
     // Update novel's chapter count
-    const chapterCount = db.prepare(`
+    const chapterCount = db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM chapters WHERE novelId = ?
-    `).get(novelId) as { count: number };
+    `,
+      )
+      .get(novelId) as { count: number };
 
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE novels 
       SET chapterCount = ?, updatedAt = ?
       WHERE id = ?
-    `).run(chapterCount.count, now, novelId);
+    `,
+    ).run(chapterCount.count, now, novelId);
   });
 
   // Execute transaction
@@ -183,13 +221,17 @@ export async function deleteNovelChapters(novelId: string): Promise<void> {
 export async function listChapters(novelId: string): Promise<number[]> {
   const db = getDb();
 
-  const chapters = db.prepare(`
+  const chapters = db
+    .prepare(
+      `
     SELECT number FROM chapters 
     WHERE novelId = ?
     ORDER BY number
-  `).all(novelId) as { number: number }[];
+  `,
+    )
+    .all(novelId) as { number: number }[];
 
-  return chapters.map(chapter => chapter.number);
+  return chapters.map((chapter) => chapter.number);
 }
 
 // Get chapter metadata for table of contents
@@ -198,10 +240,14 @@ export async function getChapterMetadata(
 ): Promise<Array<{ number: number; title: string }>> {
   const db = getDb();
 
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT number, title 
     FROM chapters 
     WHERE novelId = ?
     ORDER BY number
-  `).all(novelId) as Array<{ number: number; title: string }>;
+  `,
+    )
+    .all(novelId) as Array<{ number: number; title: string }>;
 }

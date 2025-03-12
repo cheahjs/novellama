@@ -56,7 +56,9 @@ async function migrateToSqlite(): Promise<void> {
     try {
       await fs.access(NOVELS_FILE);
     } catch {
-      console.log('No existing novels file found. Starting with fresh database.');
+      console.log(
+        'No existing novels file found. Starting with fresh database.',
+      );
       return;
     }
 
@@ -75,13 +77,15 @@ async function migrateToSqlite(): Promise<void> {
         console.log(`Migrating novel: ${novel.title}`);
 
         // Insert novel
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO novels (
             id, title, sourceLanguage, targetLanguage,
             systemPrompt, sourceUrl, translationTemplate,
             chapterCount, createdAt, updatedAt
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
+        `,
+        ).run(
           novel.id,
           novel.title,
           novel.sourceLanguage,
@@ -91,7 +95,7 @@ async function migrateToSqlite(): Promise<void> {
           novel.translationTemplate || null,
           novel.chapterCount || 0,
           novel.createdAt,
-          novel.updatedAt
+          novel.updatedAt,
         );
 
         // Insert references
@@ -107,22 +111,24 @@ async function migrateToSqlite(): Promise<void> {
             novel.id,
             ref.title,
             ref.content,
-            ref.tokenCount || null
+            ref.tokenCount || null,
           );
         }
 
         // Migrate chapters
         const novelChaptersDir = path.join(CHAPTERS_DIR, novel.id);
-        console.log(`Migrating chapters for novel: ${novel.title} (from ${novelChaptersDir})`);
+        console.log(
+          `Migrating chapters for novel: ${novel.title} (from ${novelChaptersDir})`,
+        );
         try {
           const chapterFiles = await fs.readdir(novelChaptersDir);
-          
+
           for (const file of chapterFiles) {
             if (!file.endsWith('.json')) continue;
 
             const chapterData = await fs.readFile(
               path.join(novelChaptersDir, file),
-              'utf-8'
+              'utf-8',
             );
             const chapter: Chapter = JSON.parse(chapterData);
 
@@ -130,13 +136,15 @@ async function migrateToSqlite(): Promise<void> {
             const newChapterId = nanoid();
 
             // Insert chapter
-            db.prepare(`
+            db.prepare(
+              `
               INSERT INTO chapters (
                 id, novelId, number, title,
                 sourceContent, translatedContent,
                 createdAt, updatedAt
               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
+            `,
+            ).run(
               newChapterId,
               novel.id,
               chapter.number,
@@ -144,22 +152,24 @@ async function migrateToSqlite(): Promise<void> {
               chapter.sourceContent,
               chapter.translatedContent,
               chapter.createdAt,
-              chapter.updatedAt
+              chapter.updatedAt,
             );
 
             // Insert quality check if exists
             if (chapter.qualityCheck) {
-              db.prepare(`
+              db.prepare(
+                `
                 INSERT INTO quality_checks (
                   chapterId, score, feedback,
                   isGoodQuality, createdAt
                 ) VALUES (?, ?, ?, ?, ?)
-              `).run(
+              `,
+              ).run(
                 newChapterId,
                 chapter.qualityCheck.score,
                 chapter.qualityCheck.feedback,
                 chapter.qualityCheck.isGoodQuality ? 1 : 0,
-                chapter.updatedAt // Use chapter's updatedAt as createdAt for quality check
+                chapter.updatedAt, // Use chapter's updatedAt as createdAt for quality check
               );
             }
           }
@@ -193,7 +203,6 @@ async function migrateToSqlite(): Promise<void> {
     console.log('\nMigration completed successfully!');
     console.log(`- Migrated ${novels.length} novels`);
     console.log(`- Old data backed up to: ${backupDir}`);
-
   } catch (error) {
     console.error('Migration failed:', error);
     process.exit(1);
@@ -204,4 +213,4 @@ async function migrateToSqlite(): Promise<void> {
 migrateToSqlite().catch((error) => {
   console.error('Migration failed:', error);
   process.exit(1);
-}); 
+});

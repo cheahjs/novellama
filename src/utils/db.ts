@@ -85,4 +85,4 @@ process.on('exit', () => {
   }
 });
 
-export default getDb; 
+export default getDb;

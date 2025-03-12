@@ -1,21 +1,34 @@
-import { Novel, NovelWithChapters, Reference, TranslationChapter } from '@/types';
+import {
+  Novel,
+  NovelWithChapters,
+  Reference,
+  TranslationChapter,
+} from '@/types';
 import getDb from './db';
 
 // Read all novels from database (without chapters)
 export async function readNovels(): Promise<Novel[]> {
   const db = getDb();
-  const novels = db.prepare(`
+  const novels = db
+    .prepare(
+      `
     SELECT n.*, COUNT(r.id) as referenceCount
     FROM novels n
     LEFT JOIN "references" r ON n.id = r.novelId
     GROUP BY n.id
-  `).all() as Novel[];
+  `,
+    )
+    .all() as Novel[];
 
   // Fetch references for each novel
   for (const novel of novels) {
-    const references = db.prepare(`
+    const references = db
+      .prepare(
+        `
       SELECT * FROM "references" WHERE novelId = ?
-    `).all(novel.id) as Reference[];
+    `,
+      )
+      .all(novel.id) as Reference[];
     novel.references = references;
   }
 
@@ -28,45 +41,61 @@ export async function getNovelById(
   chapterRange?: { start: number; end: number },
 ): Promise<NovelWithChapters | null> {
   const db = getDb();
-  
+
   // Get novel
-  const novel = db.prepare(`
+  const novel = db
+    .prepare(
+      `
     SELECT * FROM novels WHERE id = ?
-  `).get(id) as Novel | undefined;
+  `,
+    )
+    .get(id) as Novel | undefined;
 
   if (!novel) return null;
 
   // Get references
-  novel.references = db.prepare(`
+  novel.references = db
+    .prepare(
+      `
     SELECT * FROM "references" WHERE novelId = ?
-  `).all(id) as Reference[];
+  `,
+    )
+    .all(id) as Reference[];
 
   // Get chapters based on range
   let chaptersQuery = `
     SELECT * FROM chapters 
     WHERE novelId = ?
   `;
-  
+
   const params: (string | number)[] = [id];
-  
+
   if (chapterRange) {
     chaptersQuery += ` AND number BETWEEN ? AND ?`;
     params.push(chapterRange.start, chapterRange.end);
   }
-  
+
   chaptersQuery += ` ORDER BY number`;
-  
-  const chapters = db.prepare(chaptersQuery).all(...params) as TranslationChapter[];
+
+  const chapters = db
+    .prepare(chaptersQuery)
+    .all(...params) as TranslationChapter[];
 
   // Get quality checks for chapters
   for (const chapter of chapters) {
-    const qualityCheck = db.prepare(`
+    const qualityCheck = db
+      .prepare(
+        `
       SELECT * FROM quality_checks 
       WHERE chapterId = ?
       ORDER BY createdAt DESC
       LIMIT 1
-    `).get(chapter.id) as { score: number; feedback: string; isGoodQuality: boolean } | undefined;
-    
+    `,
+      )
+      .get(chapter.id) as
+      | { score: number; feedback: string; isGoodQuality: boolean }
+      | undefined;
+
     if (qualityCheck) {
       chapter.qualityCheck = {
         isGoodQuality: qualityCheck.isGoodQuality,
@@ -87,7 +116,8 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
   // Start transaction
   const transaction = db.transaction((novel: Novel) => {
     // Upsert novel
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO novels (
         id, title, sourceLanguage, targetLanguage,
         systemPrompt, sourceUrl, translationTemplate,
@@ -102,7 +132,8 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         translationTemplate = excluded.translationTemplate,
         chapterCount = excluded.chapterCount,
         updatedAt = excluded.updatedAt
-    `).run(
+    `,
+    ).run(
       novel.id,
       novel.title,
       novel.sourceLanguage,
@@ -112,7 +143,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       novel.translationTemplate || null,
       novel.chapterCount || 0,
       now,
-      now
+      now,
     );
 
     // Delete existing references
@@ -130,7 +161,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         novel.id,
         ref.title,
         ref.content,
-        ref.tokenCount || null
+        ref.tokenCount || null,
       );
     }
 
@@ -144,7 +175,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
 // Delete a novel and all its associated data
 export async function deleteNovel(id: string): Promise<void> {
   const db = getDb();
-  
+
   // The foreign key constraints will handle cascading deletes
   db.prepare(`DELETE FROM novels WHERE id = ?`).run(id);
 }
