@@ -121,6 +121,7 @@ export default function TranslatePage() {
         systemPrompt: novel.systemPrompt,
         references: novel.references,
         previousChapters: previousChapters,
+        translationTemplate: novel.translationTemplate,
         ...previousTranslationData, // Spread the optional previous translation data
       });
       const translatedLines = result.translatedContent.split('\n');
@@ -236,6 +237,7 @@ export default function TranslatePage() {
           systemPrompt: novel.systemPrompt,
           references: novel.references,
           previousChapters: novel.chapters,
+          translationTemplate: novel.translationTemplate,
         });
 
         const translatedLines = result.translatedContent.split('\n');
