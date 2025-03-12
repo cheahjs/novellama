@@ -48,13 +48,12 @@ export const translateContent = async (
     ) {
       improvementPrompt = `Here is a previous translation attempt with quality feedback. Please improve upon this translation addressing the issues mentioned:
 Previous translation:
-<translation>
+
 ${request.previousTranslation}
-</translation>
+
 Quality feedback:
-<feedback>
 ${request.qualityFeedback}
-</feedback>`;
+`;
     }
 
     const translationTemplate =

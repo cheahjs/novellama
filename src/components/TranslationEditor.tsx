@@ -57,6 +57,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [batchCount, setBatchCount] = useState<number>(5);
   const [useImprovementFeedback, setUseImprovementFeedback] =
     useState<boolean>(true);
+  const [useAutoRetry, setUseAutoRetry] = useState<boolean>(false);
+  const [isAutoRetrying, setIsAutoRetrying] = useState<boolean>(false);
+  const [autoRetryAttempt, setAutoRetryAttempt] = useState<number>(0);
 
   useEffect(() => {
     if (currentChapter) {
@@ -108,24 +111,75 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sourceContent.trim() && !isScrapingChapter && !isLoading) {
-      // If retranslating with a quality check, pass the previous translation and feedback
-      const previousTranslationData =
-        isRetranslating && currentChapter?.qualityCheck
-          ? {
-              previousTranslation: currentChapter.translatedContent,
-              qualityFeedback: currentChapter.qualityCheck.feedback,
-              useImprovementFeedback,
-            }
-          : undefined;
+      let finalResult: TranslationResponse | undefined;
+      let currentAttempt = 0;
+      const maxAttempts = 5;
 
-      const result = await onTranslate(sourceContent, previousTranslationData);
-      if (result) {
-        setLastTokenUsage(result.tokenUsage);
-        setLastQualityCheck(result.qualityCheck);
-        setShowSource(false); // Switch to showing translated content
+      try {
+        if (isRetranslating && useAutoRetry) {
+          setIsAutoRetrying(true);
+          let bestResult: TranslationResponse | undefined;
+
+          while (currentAttempt < maxAttempts) {
+            setAutoRetryAttempt(currentAttempt + 1);
+            const previousTranslationData = currentAttempt === 0 && currentChapter?.qualityCheck
+              ? {
+                  previousTranslation: currentChapter.translatedContent,
+                  qualityFeedback: currentChapter.qualityCheck.feedback,
+                  useImprovementFeedback,
+                }
+              : bestResult
+              ? {
+                  previousTranslation: bestResult.translatedContent,
+                  qualityFeedback: bestResult.qualityCheck?.feedback || '',
+                  useImprovementFeedback: true,
+                }
+              : undefined;
+
+            const result = await onTranslate(sourceContent, previousTranslationData);
+            
+            if (!result) break;
+
+            if (!bestResult || (result.qualityCheck?.score || 0) > (bestResult.qualityCheck?.score || 0)) {
+              bestResult = result;
+            }
+
+            if (result.qualityCheck?.isGoodQuality) {
+              finalResult = result;
+              break;
+            }
+
+            currentAttempt++;
+          }
+
+          if (!finalResult && bestResult) {
+            finalResult = bestResult;
+          }
+        } else {
+          // Regular single translation attempt
+          const previousTranslationData =
+            isRetranslating && currentChapter?.qualityCheck
+              ? {
+                  previousTranslation: currentChapter.translatedContent,
+                  qualityFeedback: currentChapter.qualityCheck.feedback,
+                  useImprovementFeedback,
+                }
+              : undefined;
+
+          finalResult = await onTranslate(sourceContent, previousTranslationData);
+        }
+
+        if (finalResult) {
+          setLastTokenUsage(finalResult.tokenUsage);
+          setLastQualityCheck(finalResult.qualityCheck);
+          setShowSource(false);
+        }
+      } finally {
+        setSourceContent('');
+        setIsRetranslating(false);
+        setIsAutoRetrying(false);
+        setAutoRetryAttempt(0);
       }
-      setSourceContent('');
-      setIsRetranslating(false);
     }
   };
 
@@ -244,22 +298,47 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             </div>
           )}
 
-          {/* Add toggle for improvement feedback */}
-          {isRetranslating && currentChapter?.qualityCheck && (
-            <div className="mb-4 flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="useImprovementFeedback"
-                checked={useImprovementFeedback}
-                onChange={(e) => setUseImprovementFeedback(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
-              />
-              <label
-                htmlFor="useImprovementFeedback"
-                className="text-sm text-gray-300"
-              >
-                Use previous translation and feedback for improvement
-              </label>
+          {/* Add toggle for auto-retry when retranslating */}
+          {isRetranslating && (
+            <div className="space-y-2">
+              {currentChapter?.qualityCheck && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="useImprovementFeedback"
+                    checked={useImprovementFeedback}
+                    onChange={(e) => setUseImprovementFeedback(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label
+                    htmlFor="useImprovementFeedback"
+                    className="text-sm text-gray-300"
+                  >
+                    Use previous translation and feedback for improvement
+                  </label>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="useAutoRetry"
+                  checked={useAutoRetry}
+                  onChange={(e) => setUseAutoRetry(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                />
+                <label
+                  htmlFor="useAutoRetry"
+                  className="text-sm text-gray-300"
+                >
+                  Auto-retry translation until good quality (max 5 attempts)
+                </label>
+              </div>
+            </div>
+          )}
+
+          {isAutoRetrying && (
+            <div className="mt-2 text-sm text-gray-400">
+              Attempt {autoRetryAttempt}/5 - Trying to achieve good quality translation...
             </div>
           )}
         </div>
