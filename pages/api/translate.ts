@@ -17,9 +17,9 @@ export default async function handler(
     console.log({
       url,
       body: {
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
+        model: process.env.TRANSLATION_MODEL || 'gpt-4',
         messages,
-        temperature: 0.1,
+        temperature: parseFloat(process.env.TRANSLATION_TEMPERATURE || '0.1'),
       },
       headers: {
         'Content-Type': 'application/json',
@@ -30,9 +30,9 @@ export default async function handler(
     const apiResponse = await axios.post(
       url,
       {
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
+        model: process.env.TRANSLATION_MODEL || 'gpt-4',
         messages,
-        temperature: 0.1,
+        temperature: parseFloat(process.env.TRANSLATION_TEMPERATURE || '0.1'),
       },
       {
         headers: {
@@ -48,6 +48,7 @@ export default async function handler(
     const tokenUsage = apiResponse.data.usage;
     console.log('response', {
       apiResponse,
+      usage: tokenUsage,
     });
 
     return res.status(200).json({ translation, tokenUsage });

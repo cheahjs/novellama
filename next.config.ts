@@ -5,7 +5,10 @@ const nextConfig: NextConfig = {
   // reactStrictMode: true,
   env: {
     OPENAI_BASE_URL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-    OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o',
+    TRANSLATION_MODEL: process.env.TRANSLATION_MODEL || 'gpt-4o-mini',
+    QUALITY_CHECK_MODEL: process.env.QUALITY_CHECK_MODEL || 'gpt-4o',
+    TRANSLATION_TEMPERATURE: process.env.TRANSLATION_TEMPERATURE || '0.1',
+    QUALITY_CHECK_TEMPERATURE: process.env.QUALITY_CHECK_TEMPERATURE || '0.1',
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
     MAX_TOKENS: process.env.MAX_TOKENS ?? '16000',
   },
