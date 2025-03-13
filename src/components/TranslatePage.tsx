@@ -18,7 +18,7 @@ export default function TranslatePage() {
   const [novel, setNovel] = useState<NovelWithChapters | null>(null);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [currentChapterNumber, setCurrentChapterNumber] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
   const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isBatchTranslating, setIsBatchTranslating] = useState(false);
@@ -108,7 +108,7 @@ export default function TranslatePage() {
   ) => {
     if (!novel) return;
 
-    setIsLoading(true);
+    setIsTranslating(true);
 
     try {
       // Remove the current chapter from the list of previous chapters
@@ -179,13 +179,14 @@ export default function TranslatePage() {
       }
 
       toast.success('Translation complete');
-      setIsLoading(false);
+      setIsTranslating(false);
       return result;
     } catch (error: unknown) {
       console.error('Translation error:', error);
       toast.error('Failed to translate content');
-      setIsLoading(false);
       throw error;
+    } finally {
+      setIsTranslating(false);
     }
   };
 
@@ -521,7 +522,7 @@ export default function TranslatePage() {
           currentChapterNumber={currentChapterNumber}
           onTranslate={handleTranslate}
           onSaveEdit={handleSaveEdit}
-          isLoading={isLoading}
+          isLoading={isTranslating}
           onBatchTranslate={novel?.sourceUrl ? handleBatchTranslate : undefined}
           isBatchTranslating={isBatchTranslating}
           onCancelBatchTranslate={handleCancelBatchTranslate}

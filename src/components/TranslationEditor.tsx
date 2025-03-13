@@ -282,8 +282,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                 onClick={handleRetranslate}
                 className="absolute top-2 right-2 flex items-center rounded bg-gray-700 p-1.5 text-sm text-white hover:bg-gray-600"
                 title="Retranslate this text"
+                disabled={isLoading}
               >
-                <FiRefreshCw className="mr-1" /> Retranslate
+                <FiRefreshCw className="mr-1" /> {isLoading ? 'Translating...' : 'Retranslate'}
               </button>
             </div>
           )}
@@ -466,12 +467,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   <button
                     type="button"
                     onClick={() => onBatchTranslate(batchCount, useAutoRetry)}
-                    disabled={isLoading}
-                    className={`flex items-center rounded-md px-4 py-2 ${
-                      isLoading
-                        ? 'cursor-not-allowed bg-gray-500'
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
+                    className="flex items-center rounded-md px-4 py-2 bg-purple-600 text-white hover:bg-purple-700"
                   >
                     <FiPlayCircle className="mr-2" />
                     Batch Translate

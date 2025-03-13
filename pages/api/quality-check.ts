@@ -66,7 +66,7 @@ Evaluate the translation quality focusing on accuracy, fluency, and completeness
 Consider:
 1. Accuracy: Does it faithfully represent the original content?
 2. Fluency: Is it natural in the target language?
-3. Completeness: Was anything omitted or added inappropriately?
+3. Completeness: Was anything omitted or added inappropriately? The translation should be complete and not missing any important information or be truncated.
 4. Title: The title must be translated. If the title translation deviates from the source title (such as an irrelevant translation or incorrect numbering), this is a significant issue and should not score higher than 7.
 5. Extranous content: If there's extranous content in the translation, this is a significant issue and should not score higher than 7. Extranous content is content that is not part of the source content, for example if it appears that the contents of another chapter is included in the translation.
 6. The content inside of <translation> tags must only contain the translation, and not any other content such as feedback or the source content. If there is any other content, this is a significant issue and should not score higher than 7. Don't mention the translation tags in the feedback - the translator does not see the tags.
