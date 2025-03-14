@@ -26,33 +26,35 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
 }) => {
   const [showTOC, setShowTOC] = useState(false);
   const [showActions, setShowActions] = useState(false);
-  const lastNavigationTimeRef = useRef(0);
+  const isNavigatingRef = useRef(false);
 
-  const canNavigate = () => {
-    const now = Date.now();
-    if (now - lastNavigationTimeRef.current > 100) {
-      lastNavigationTimeRef.current = now;
-      return true;
+  const safeNavigate = useCallback((targetIndex: number) => {
+    if (isNavigatingRef.current) {
+      return;
     }
-    return false;
-  };
+
+    isNavigatingRef.current = true;
+    onNavigate(targetIndex);
+  }, [onNavigate]);
+
+  useEffect(() => {
+    isNavigatingRef.current = false;
+  }, [currentIndex]);
 
   const handlePrevious = useCallback(() => {
-    if (currentIndex > 0 && canNavigate()) {
-      onNavigate(currentIndex - 1);
+    if (currentIndex > 0) {
+      safeNavigate(currentIndex - 1);
     }
-  }, [currentIndex, onNavigate]);
+  }, [currentIndex, safeNavigate]);
 
   const handleNext = useCallback(() => {
-    if (canNavigate()) {
-      // If we're at the last chapter, create a new chapter
-      if (currentIndex >= totalChapters - 1) {
-        onNavigate(totalChapters);
-      } else {
-        onNavigate(currentIndex + 1);
-      }
+    // If we're at the last chapter, create a new chapter
+    if (currentIndex >= totalChapters - 1) {
+      safeNavigate(totalChapters);
+    } else {
+      safeNavigate(currentIndex + 1);
     }
-  }, [currentIndex, totalChapters, onNavigate]);
+  }, [currentIndex, totalChapters, safeNavigate]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
