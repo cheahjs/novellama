@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FiChevronLeft,
   FiChevronRight,
@@ -26,30 +26,70 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
 }) => {
   const [showTOC, setShowTOC] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const lastNavigationTimeRef = useRef(0);
 
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
+  const canNavigate = () => {
+    const now = Date.now();
+    if (now - lastNavigationTimeRef.current > 100) {
+      lastNavigationTimeRef.current = now;
+      return true;
+    }
+    return false;
+  };
+
+  const handlePrevious = useCallback(() => {
+    if (currentIndex > 0 && canNavigate()) {
       onNavigate(currentIndex - 1);
     }
-  };
+  }, [currentIndex, onNavigate]);
 
-  const handleNext = () => {
-    // If we're at the last chapter, create a new chapter
-    if (currentIndex >= totalChapters - 1) {
-      onNavigate(totalChapters);
-    } else {
-      onNavigate(currentIndex + 1);
+  const handleNext = useCallback(() => {
+    if (canNavigate()) {
+      // If we're at the last chapter, create a new chapter
+      if (currentIndex >= totalChapters - 1) {
+        onNavigate(totalChapters);
+      } else {
+        onNavigate(currentIndex + 1);
+      }
     }
-  };
+  }, [currentIndex, totalChapters, onNavigate]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle arrow keys if no modifiers are pressed
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return;
+      }
+
+      // Ignore key events when focus is in an input or textarea
+      if (
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA'
+      ) {
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        handlePrevious();
+      } else if (event.key === 'ArrowRight') {
+        handleNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handlePrevious, handleNext]);
 
   const currentChapter = chapters[currentIndex];
 
   return (
-    <div className="relative flex items-center justify-between py-4">
+    <div className="relative flex items-stretch py-4">
       <button
         onClick={handlePrevious}
         disabled={currentIndex <= 0}
-        className={`flex items-center space-x-2 rounded-lg px-4 py-2 ${
+        className={`flex items-center space-x-2 rounded-lg px-4 ${
           currentIndex <= 0
             ? 'cursor-not-allowed text-gray-700'
             : 'text-gray-400 hover:bg-gray-700'
@@ -59,7 +99,7 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
         <span>Previous Chapter</span>
       </button>
 
-      <div className="mx-4 flex-1 text-center">
+      <div className="mx-4 flex-1">
         <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => setShowTOC(!showTOC)}
@@ -100,7 +140,7 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
             )}
         </div>
         {currentChapter && (
-          <div className="mt-1 text-lg font-medium">
+          <div className="mt-1 text-center text-lg font-medium">
             {currentChapter.title || `Chapter ${currentIndex + 1}`}
           </div>
         )}
@@ -134,7 +174,7 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
 
       <button
         onClick={handleNext}
-        className="flex items-center space-x-2 rounded-lg px-4 py-2 text-gray-400 hover:bg-gray-700"
+        className="flex items-center space-x-2 rounded-lg px-4 text-gray-400 hover:bg-gray-700"
       >
         <span>
           {currentIndex >= totalChapters - 1 ? 'New Chapter' : 'Next Chapter'}
