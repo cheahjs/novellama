@@ -45,9 +45,9 @@ export default async function handler(
           sourceUrl: body.sourceUrl || '',
           systemPrompt: body.systemPrompt || '',
           references: [],
-          chapters: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
+          chapterCount: 0
         };
         await saveNovel(novel);
         return res.status(201).json(novel);
