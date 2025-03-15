@@ -70,29 +70,32 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [displayedChapter, setDisplayedChapter] = useState(chapter);
 
   useEffect(() => {
-    if (chapter) {
-      // Only update displayed chapter if it's different
-      if (chapter.number !== displayedChapter?.number) {
-        // Reset states when chapter changes
-        setIsRetranslating(false);
-        setIsAutoRetrying(false);
-        setAutoRetryAttempt(0);
-        setShowSource(false);
-        setIsEditing(false);
-        setSourceContent('');
+    // Reset states when chapter changes or when moving to a new chapter
+    setIsRetranslating(false);
+    setIsAutoRetrying(false);
+    setAutoRetryAttempt(0);
+    setShowSource(false);
+    setIsEditing(false);
+    setSourceContent('');
 
-        // Update content states
-        setEditTitle(chapter.title);
-        setEditContent(chapter.translatedContent);
-        
-        // Update displayed chapter
-        setDisplayedChapter(chapter);
-        
-        // Set the quality check from the current chapter if available
-        setLastQualityCheck(chapter.qualityCheck ?? undefined);
-      }
+    if (chapter) {
+      // Update content states
+      setEditTitle(chapter.title);
+      setEditContent(chapter.translatedContent);
+      
+      // Update displayed chapter
+      setDisplayedChapter(chapter);
+      
+      // Set the quality check from the current chapter if available
+      setLastQualityCheck(chapter.qualityCheck ?? undefined);
+    } else {
+      // Clear displayed chapter when moving to a new chapter
+      setDisplayedChapter(null);
+      setEditTitle('');
+      setEditContent('');
+      setLastQualityCheck(undefined);
     }
-  }, [chapter, displayedChapter?.number]);
+  }, [chapter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,11 +116,11 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             const previousTranslationData =
               currentAttempt === 0
                 ? isRetranslating &&
-                  chapter?.qualityCheck &&
+                  displayedChapter?.qualityCheck &&
                   useExistingTranslation
                   ? {
-                      previousTranslation: chapter.translatedContent,
-                      qualityFeedback: chapter.qualityCheck.feedback,
+                      previousTranslation: displayedChapter.translatedContent,
+                      qualityFeedback: displayedChapter.qualityCheck.feedback,
                       useImprovementFeedback,
                     }
                   : undefined
@@ -158,10 +161,10 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         } else {
           // Regular single translation attempt
           const previousTranslationData =
-            isRetranslating && chapter?.qualityCheck && useExistingTranslation
+            isRetranslating && displayedChapter?.qualityCheck && useExistingTranslation
               ? {
-                  previousTranslation: chapter.translatedContent,
-                  qualityFeedback: chapter.qualityCheck.feedback,
+                  previousTranslation: displayedChapter.translatedContent,
+                  qualityFeedback: displayedChapter.qualityCheck.feedback,
                   useImprovementFeedback,
                 }
               : undefined;
@@ -187,17 +190,16 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   };
 
   const handleRetranslate = () => {
-    if (chapter) {
-      setSourceContent(chapter.sourceContent);
-      setIsRetranslating(true);
-      setTimeout(() => {
-        textareaRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
+    if (!displayedChapter) return;
+    setSourceContent(displayedChapter.sourceContent);
+    setIsRetranslating(true);
+    setTimeout(() => {
+      textareaRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   const handleScrapeChapter = async () => {
-    if (!novelSourceUrl || isScrapingChapter) return;
+    if (!novelSourceUrl || isScrapingChapter || !nextChapterNumber) return;
 
     setIsScrapingChapter(true);
     try {
@@ -232,13 +234,13 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
   return (
     <div className="mt-6 space-y-4">
-      {chapter && !isRetranslating ? (
+      {displayedChapter && !isRetranslating ? (
         <div className="rounded-lg border p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
               {/* Only show quality indicator if we have a current chapter with quality data */}
-              {chapter.qualityCheck && (
-                <QualityIndicator qualityCheck={chapter.qualityCheck} />
+              {displayedChapter?.qualityCheck && (
+                <QualityIndicator qualityCheck={displayedChapter.qualityCheck} />
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -284,10 +286,10 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             </div>
           </div>
 
-          {showSource && (
+          {showSource && displayedChapter && (
             <div className="relative mb-4">
               <div className="rounded bg-gray-900 p-3 text-sm whitespace-pre-wrap text-gray-100">
-                {chapter.sourceContent}
+                {displayedChapter.sourceContent}
               </div>
               <button
                 type="button"
@@ -302,10 +304,10 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             </div>
           )}
 
-          {!showSource && !isEditing && (
+          {!showSource && !isEditing && displayedChapter && (
             <div className="prose prose-invert translation-content max-w-none">
               <ReactMarkdown remarkPlugins={[remarkBreaks]}>
-                {chapter.translatedContent}
+                {displayedChapter.translatedContent}
               </ReactMarkdown>
             </div>
           )}
@@ -385,7 +387,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               </label>
             </div>
 
-            {isRetranslating && chapter?.qualityCheck && (
+            {isRetranslating && displayedChapter?.qualityCheck && (
               <>
                 <div className="flex items-center gap-2">
                   <input

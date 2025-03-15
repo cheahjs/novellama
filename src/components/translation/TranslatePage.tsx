@@ -482,9 +482,6 @@ export default function TranslatePage() {
   const handleNavigate = async (chapterNumber: number) => {
     if (!novel) return;
 
-    // Keep the current chapter visible while loading the new one
-    const previousChapter = currentChapter;
-
     // Update URL without reloading
     router.push(
       {

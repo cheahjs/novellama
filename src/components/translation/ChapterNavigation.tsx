@@ -50,10 +50,10 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
   }, [currentChapter, safeNavigate]);
 
   const handleNext = useCallback(() => {
-    // If we're at the last chapter, create a new chapter
-    if (currentChapter >= totalChapters) {
+    // If we're at the last chapter and not already on a new chapter, create a new chapter
+    if (currentChapter === totalChapters) {
       safeNavigate(totalChapters + 1);
-    } else {
+    } else if (currentChapter < totalChapters) {
       safeNavigate(currentChapter + 1);
     }
   }, [currentChapter, totalChapters, safeNavigate]);
@@ -75,7 +75,7 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
 
       if (event.key === 'ArrowLeft') {
         handlePrevious();
-      } else if (event.key === 'ArrowRight') {
+      } else if (event.key === 'ArrowRight' && currentChapter <= totalChapters) {
         handleNext();
       }
     };
@@ -84,7 +84,7 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handlePrevious, handleNext]);
+  }, [handlePrevious, handleNext, currentChapter, totalChapters]);
 
   const currentChapterData = chapters.find(ch => ch.number === currentChapter);
 
@@ -178,12 +178,17 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
 
       <button
         onClick={handleNext}
-        className="flex items-center space-x-2 rounded-lg px-4 text-gray-400 hover:bg-gray-700"
+        className={`flex items-center space-x-2 rounded-lg px-4 ${
+          currentChapter > totalChapters
+            ? 'cursor-not-allowed text-gray-700'
+            : 'text-gray-400 hover:bg-gray-700'
+        }`}
+        disabled={currentChapter > totalChapters}
       >
         <span>
-          {currentChapter >= totalChapters ? 'New Chapter' : 'Next Chapter'}
+          {currentChapter === totalChapters ? 'New Chapter' : 'Next Chapter'}
         </span>
-        {currentChapter >= totalChapters ? (
+        {currentChapter === totalChapters ? (
           <FiPlus className="h-5 w-5" />
         ) : (
           <FiChevronRight className="h-5 w-5" />
