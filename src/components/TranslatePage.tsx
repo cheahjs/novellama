@@ -157,6 +157,20 @@ export default function TranslatePage() {
       // Save the updated chapter
       await addChapterToNovel(novel.id, updatedChapter);
 
+      // Update the loadedChapters state with the new content
+      setLoadedChapters(prevChapters => {
+        return prevChapters.map(ch => 
+          ch.number === updatedChapter.number ? updatedChapter : ch
+        );
+      });
+
+      // Update the chapter metadata to reflect the new title
+      setChapterMetadata(prevMetadata => {
+        return prevMetadata.map(ch => 
+          ch.number === updatedChapter.number ? { number: updatedChapter.number, title: updatedChapter.title } : ch
+        );
+      });
+
       // Reload the novel to get the updated chapters
       const updatedNovel = await getNovel(novel.id);
       if (updatedNovel) {
@@ -208,6 +222,20 @@ export default function TranslatePage() {
 
         // Save the updated chapter
         await updateChapter(novel.id, updatedChapter);
+
+        // Update the loadedChapters state with the new translation
+        setLoadedChapters(prevChapters => {
+          return prevChapters.map(ch => 
+            ch.number === updatedChapter.number ? updatedChapter : ch
+          );
+        });
+
+        // Update the chapter metadata to reflect the new title
+        setChapterMetadata(prevMetadata => {
+          return prevMetadata.map(ch => 
+            ch.number === updatedChapter.number ? { number: updatedChapter.number, title: updatedChapter.title } : ch
+          );
+        });
 
         // Reload the novel to get the updated chapters
         const updatedNovel = await getNovel(novel.id);

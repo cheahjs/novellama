@@ -165,7 +165,10 @@ export default async function handler(
     }
 
     // Fetch the novel first to get all the metadata
-    const novel = await getNovel(request.novelId, undefined, req);
+    const novel = await getNovel(request.novelId, {
+      start: 0,
+      end: 999999, // Large number to ensure we get all chapters
+    }, req);
     if (!novel) {
       return res.status(404).json({ message: 'Novel not found' });
     }
