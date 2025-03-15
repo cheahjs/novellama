@@ -7,13 +7,12 @@ import {
   FiTrash2,
   FiMoreVertical,
 } from 'react-icons/fi';
-import { TranslationChapter } from '@/types';
 
 interface ChapterNavigationProps {
   currentIndex: number;
   totalChapters: number;
   onNavigate: (index: number) => void;
-  chapters: TranslationChapter[];
+  chapters: Array<{ number: number; title: string }>;
   onDeleteLatest?: () => void;
 }
 
@@ -165,10 +164,10 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
                   }`}
                 >
                   <div className="text-sm text-gray-400">
-                    Chapter {index + 1}
+                    Chapter {chapter.number}
                   </div>
                   <div className="text-gray-200">
-                    {chapter.title || `Chapter ${index + 1}`}
+                    {chapter.title || `Chapter ${chapter.number}`}
                   </div>
                 </button>
               ))}

@@ -62,48 +62,67 @@ export async function getNovelById(
     )
     .all(id) as Reference[];
 
+  // Only fetch chapters if a range is specified
+  if (!chapterRange) {
+    return { ...novel, chapters: [] };
+  }
+
   // Get chapters based on range
-  let chaptersQuery = `
-    SELECT * FROM chapters 
-    WHERE novelId = ?
+  const chaptersQuery = `
+    SELECT c.*, q.score, q.feedback, q.isGoodQuality
+    FROM chapters c
+    LEFT JOIN (
+      SELECT chapterId, score, feedback, isGoodQuality
+      FROM quality_checks qc1
+      WHERE (
+        SELECT COUNT(*)
+        FROM quality_checks qc2
+        WHERE qc2.chapterId = qc1.chapterId
+        AND qc2.createdAt > qc1.createdAt
+      ) = 0
+    ) q ON c.id = q.chapterId
+    WHERE c.novelId = ? AND c.number BETWEEN ? AND ?
+    ORDER BY c.number
   `;
 
-  const params: (string | number)[] = [id];
-
-  if (chapterRange) {
-    chaptersQuery += ` AND number BETWEEN ? AND ?`;
-    params.push(chapterRange.start, chapterRange.end);
+  interface ChapterRow {
+    id: string;
+    number: number;
+    title: string;
+    sourceContent: string;
+    translatedContent: string;
+    createdAt: number;
+    updatedAt: number;
+    score: number | null;
+    feedback: string | null;
+    isGoodQuality: number | null;
   }
 
-  chaptersQuery += ` ORDER BY number`;
-
-  const chapters = db
+  const rows = db
     .prepare(chaptersQuery)
-    .all(...params) as TranslationChapter[];
+    .all(id, chapterRange.start, chapterRange.end) as ChapterRow[];
 
-  // Get quality checks for chapters
-  for (const chapter of chapters) {
-    const qualityCheck = db
-      .prepare(
-        `
-      SELECT * FROM quality_checks 
-      WHERE chapterId = ?
-      ORDER BY createdAt DESC
-      LIMIT 1
-    `,
-      )
-      .get(chapter.id) as
-      | { score: number; feedback: string; isGoodQuality: boolean }
-      | undefined;
+  const chapters = rows.map((row) => {
+    const chapter: TranslationChapter = {
+      id: row.id,
+      number: row.number,
+      title: row.title,
+      sourceContent: row.sourceContent,
+      translatedContent: row.translatedContent,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
 
-    if (qualityCheck) {
+    if (row.score !== null) {
       chapter.qualityCheck = {
-        isGoodQuality: qualityCheck.isGoodQuality,
-        score: qualityCheck.score,
-        feedback: qualityCheck.feedback,
+        score: row.score,
+        feedback: row.feedback || '',
+        isGoodQuality: Boolean(row.isGoodQuality),
       };
     }
-  }
+
+    return chapter;
+  });
 
   return { ...novel, chapters };
 }

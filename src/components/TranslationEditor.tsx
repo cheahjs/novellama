@@ -8,7 +8,7 @@ import {
   FiSave,
   FiPlayCircle,
 } from 'react-icons/fi';
-import { TranslationChapter, Novel, TranslationResponse } from '@/types';
+import { TranslationChapter, TranslationResponse } from '@/types';
 import LiveTokenCounter from './LiveTokenCounter';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -16,30 +16,27 @@ import TokenUsage from './TokenUsage';
 import QualityIndicator from './QualityIndicator';
 
 interface TranslationEditorProps {
-  novel: Novel;
-  currentChapter: TranslationChapter | null;
-  currentChapterNumber: number;
+  chapter: TranslationChapter | null;
   onTranslate: (
     sourceContent: string,
     previousTranslationData?: {
-      previousTranslation: string;
-      qualityFeedback: string;
+      previousTranslation?: string;
+      qualityFeedback?: string;
+      useImprovementFeedback?: boolean;
     },
   ) => Promise<TranslationResponse | undefined>;
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
-  isLoading: boolean;
+  isTranslating: boolean;
   onBatchTranslate?: (count: number, useAutoRetry: boolean) => Promise<void>;
   isBatchTranslating?: boolean;
   onCancelBatchTranslate?: () => void;
 }
 
 const TranslationEditor: React.FC<TranslationEditorProps> = ({
-  novel,
-  currentChapter,
-  currentChapterNumber,
+  chapter,
   onTranslate,
   onSaveEdit,
-  isLoading,
+  isTranslating,
   onBatchTranslate,
   isBatchTranslating,
   onCancelBatchTranslate,
@@ -66,55 +63,27 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     useState<boolean>(true);
 
   useEffect(() => {
-    if (currentChapter) {
+    if (chapter) {
       if (isRetranslating) {
-        setSourceContent(currentChapter.sourceContent);
+        setSourceContent(chapter.sourceContent);
       } else {
         setSourceContent('');
       }
-      setEditTitle(currentChapter.title);
-      setEditContent(currentChapter.translatedContent);
+      setEditTitle(chapter.title);
+      setEditContent(chapter.translatedContent);
 
       // Set the quality check from the current chapter if available
-      if (currentChapter.qualityCheck) {
-        setLastQualityCheck(currentChapter.qualityCheck);
+      if (chapter.qualityCheck) {
+        setLastQualityCheck(chapter.qualityCheck);
       } else {
         setLastQualityCheck(undefined);
       }
     }
-  }, [currentChapter, isRetranslating]);
-
-  const handleScrapeChapter = async () => {
-    if (!novel?.sourceUrl) return;
-
-    try {
-      setIsScrapingChapter(true);
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: novel.sourceUrl,
-          chapterNumber: currentChapterNumber,
-          type: 'syosetu',
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to scrape chapter');
-
-      const data = await response.json();
-      if (data.title && data.content) {
-        setSourceContent(`# ${data.title}\n\n${data.content}`);
-      }
-    } catch (error) {
-      console.error('Error scraping chapter:', error);
-    } finally {
-      setIsScrapingChapter(false);
-    }
-  };
+  }, [chapter, isRetranslating]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (sourceContent.trim() && !isScrapingChapter && !isLoading) {
+    if (sourceContent.trim() && !isScrapingChapter && !isTranslating) {
       let finalResult: TranslationResponse | undefined;
       let currentAttempt = 0;
       const maxAttempts = 5;
@@ -131,11 +100,11 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             const previousTranslationData =
               currentAttempt === 0
                 ? isRetranslating &&
-                  currentChapter?.qualityCheck &&
+                  chapter?.qualityCheck &&
                   useExistingTranslation
                   ? {
-                      previousTranslation: currentChapter.translatedContent,
-                      qualityFeedback: currentChapter.qualityCheck.feedback,
+                      previousTranslation: chapter.translatedContent,
+                      qualityFeedback: chapter.qualityCheck.feedback,
                       useImprovementFeedback,
                     }
                   : undefined
@@ -176,12 +145,10 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         } else {
           // Regular single translation attempt
           const previousTranslationData =
-            isRetranslating &&
-            currentChapter?.qualityCheck &&
-            useExistingTranslation
+            isRetranslating && chapter?.qualityCheck && useExistingTranslation
               ? {
-                  previousTranslation: currentChapter.translatedContent,
-                  qualityFeedback: currentChapter.qualityCheck.feedback,
+                  previousTranslation: chapter.translatedContent,
+                  qualityFeedback: chapter.qualityCheck.feedback,
                   useImprovementFeedback,
                 }
               : undefined;
@@ -207,8 +174,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   };
 
   const handleRetranslate = () => {
-    if (currentChapter) {
-      setSourceContent(currentChapter.sourceContent);
+    if (chapter) {
+      setSourceContent(chapter.sourceContent);
       setIsRetranslating(true);
       setTimeout(() => {
         textareaRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -216,17 +183,15 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     }
   };
 
-  const canScrapeChapter = novel?.sourceUrl;
-
   return (
     <div className="mt-6 space-y-4">
-      {currentChapter ? (
+      {chapter ? (
         <div className="rounded-lg border p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
               {/* Only show quality indicator if we have a current chapter with quality data */}
-              {currentChapter.qualityCheck && (
-                <QualityIndicator qualityCheck={currentChapter.qualityCheck} />
+              {chapter.qualityCheck && (
+                <QualityIndicator qualityCheck={chapter.qualityCheck} />
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -269,230 +234,154 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   </>
                 )}
               </button>
-            </div>
-          </div>
-
-          {showSource && (
-            <div className="relative mb-4">
-              <div className="rounded bg-gray-900 p-3 text-sm whitespace-pre-wrap text-gray-100">
-                {currentChapter.sourceContent}
-              </div>
               <button
                 type="button"
                 onClick={handleRetranslate}
-                className="absolute top-2 right-2 flex items-center rounded bg-gray-700 p-1.5 text-sm text-white hover:bg-gray-600"
-                title="Retranslate this text"
-                disabled={isLoading}
+                className="flex items-center text-sm text-gray-500 hover:text-gray-700"
               >
-                <FiRefreshCw className="mr-1" />{' '}
-                {isLoading ? 'Translating...' : 'Retranslate'}
+                <FiRefreshCw className="mr-1" /> Retranslate
               </button>
             </div>
-          )}
+          </div>
 
-          {!showSource && !isEditing && (
-            <div className="prose prose-invert translation-content max-w-none">
+          {showSource ? (
+            <div className="prose prose-invert max-w-none">
               <ReactMarkdown remarkPlugins={[remarkBreaks]}>
-                {currentChapter.translatedContent}
+                {chapter.sourceContent}
               </ReactMarkdown>
             </div>
-          )}
-          {!showSource && isEditing && (
+          ) : isEditing ? (
             <div className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-200">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full rounded border bg-gray-800 p-2 text-white focus:border-transparent focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-200">
-                  Content
-                </label>
-                <textarea
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  className="h-96 w-full rounded border bg-gray-800 p-2 font-mono text-white focus:border-transparent focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full rounded border bg-gray-800 px-3 py-2 text-lg font-medium text-gray-100"
+                placeholder="Chapter title"
+              />
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                className="h-96 w-full rounded border bg-gray-800 px-3 py-2 text-gray-100"
+                placeholder="Chapter content"
+              />
+            </div>
+          ) : (
+            <div className="prose prose-invert max-w-none">
+              <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                {chapter.translatedContent}
+              </ReactMarkdown>
             </div>
           )}
         </div>
       ) : (
-        <div className="py-8 text-center text-gray-500">
-          {isScrapingChapter
-            ? 'Scraping chapter content...'
-            : 'Start translating by entering content below'}
-        </div>
-      )}
-
-      {(!currentChapter || isRetranslating) && (
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="relative">
-            <textarea
-              ref={textareaRef}
-              value={sourceContent}
-              onChange={(e) => setSourceContent(e.target.value)}
-              placeholder={
-                isScrapingChapter
-                  ? 'Loading chapter content...'
-                  : isLoading
-                    ? 'Translating...'
-                    : 'Enter text to translate...'
-              }
-              className="h-40 w-full rounded-lg border p-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-              disabled={isScrapingChapter || isLoading}
-            />
-            <div className="absolute top-2 right-2">
-              <LiveTokenCounter
-                text={sourceContent}
-                className="rounded bg-gray-800 px-2 py-1"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="useAutoRetry"
-                checked={useAutoRetry}
-                onChange={(e) => setUseAutoRetry(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
-              />
-              <label htmlFor="useAutoRetry" className="text-sm text-gray-300">
-                Auto-retry translation until good quality (max 5 attempts)
-              </label>
-            </div>
-
-            {isRetranslating && currentChapter?.qualityCheck && (
-              <>
+        <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-medium">New Chapter</h2>
+              <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="useExistingTranslation"
-                    checked={useExistingTranslation}
-                    onChange={(e) =>
-                      setUseExistingTranslation(e.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                    id="useAutoRetry"
+                    checked={useAutoRetry}
+                    onChange={(e) => setUseAutoRetry(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <label
-                    htmlFor="useExistingTranslation"
-                    className="text-sm text-gray-300"
+                    htmlFor="useAutoRetry"
+                    className="text-sm text-gray-400"
                   >
-                    Use existing translation for first attempt
+                    Auto-retry until good quality
                   </label>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="useImprovementFeedback"
-                    checked={useImprovementFeedback}
-                    onChange={(e) =>
-                      setUseImprovementFeedback(e.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
-                  />
-                  <label
-                    htmlFor="useImprovementFeedback"
-                    className="text-sm text-gray-300"
-                  >
-                    Use feedback for improvement in retries
-                  </label>
-                </div>
-              </>
-            )}
-          </div>
-
-          {isAutoRetrying && (
-            <div className="mt-2 text-sm text-gray-400">
-              Attempt {autoRetryAttempt}/5 - Trying to achieve good quality
-              translation...
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleScrapeChapter}
-              disabled={!canScrapeChapter || isScrapingChapter || isLoading}
-              className={`flex flex-1 items-center justify-center rounded-md px-4 py-2 ${
-                !canScrapeChapter || isScrapingChapter || isLoading
-                  ? 'cursor-not-allowed bg-gray-500'
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
-            >
-              <FiDownload className="mr-2" />
-              {isScrapingChapter ? 'Loading Chapter...' : 'Load Chapter'}
-            </button>
-
-            <button
-              type="submit"
-              disabled={isScrapingChapter || isLoading || !sourceContent.trim()}
-              className={`flex-1 rounded-md px-4 py-2 ${
-                isScrapingChapter || isLoading || !sourceContent.trim()
-                  ? 'cursor-not-allowed bg-gray-500'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              {isLoading ? 'Translating...' : 'Translate'}
-            </button>
-
-            {onBatchTranslate && (
-              <div className="ml-2 flex items-center gap-2">
-                <input
-                  type="number"
-                  value={batchCount}
-                  onChange={(e) =>
-                    setBatchCount(Math.max(1, parseInt(e.target.value) || 1))
-                  }
-                  className="w-16 rounded-md bg-gray-700 px-2 py-2 text-white"
-                  min="1"
-                  disabled={isBatchTranslating}
-                />
-                {isBatchTranslating ? (
-                  <button
-                    type="button"
-                    onClick={onCancelBatchTranslate}
-                    className="flex items-center rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700"
-                  >
-                    Cancel Batch
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => onBatchTranslate(batchCount, useAutoRetry)}
-                    className="flex items-center rounded-md bg-purple-600 px-4 py-2 text-white hover:bg-purple-700"
-                  >
-                    <FiPlayCircle className="mr-2" />
-                    Batch Translate
-                  </button>
+                {onBatchTranslate && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={batchCount}
+                      onChange={(e) =>
+                        setBatchCount(Math.max(1, parseInt(e.target.value)))
+                      }
+                      className="w-16 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
+                      min="1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onBatchTranslate(batchCount, useAutoRetry)}
+                      disabled={isBatchTranslating}
+                      className="flex items-center rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isBatchTranslating ? (
+                        <>
+                          <FiRefreshCw className="mr-2 animate-spin" />
+                          Translating...
+                        </>
+                      ) : (
+                        <>
+                          <FiPlayCircle className="mr-2" />
+                          Batch Translate
+                        </>
+                      )}
+                    </button>
+                    {isBatchTranslating && onCancelBatchTranslate && (
+                      <button
+                        type="button"
+                        onClick={onCancelBatchTranslate}
+                        className="text-sm text-red-400 hover:text-red-500"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
 
-          {lastTokenUsage && (
-            <TokenUsage
-              tokenUsage={lastTokenUsage}
-              className="mt-4 rounded-lg border p-3"
-            />
-          )}
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                value={sourceContent}
+                onChange={(e) => setSourceContent(e.target.value)}
+                className="h-96 w-full rounded border bg-gray-800 px-3 py-2 text-gray-100"
+                placeholder="Paste source content here..."
+              />
+              <div className="absolute right-2 bottom-2">
+                <LiveTokenCounter text={sourceContent} />
+              </div>
+            </div>
 
-          {/* Only show quality indicator after translation */}
-          {lastQualityCheck && isRetranslating && (
-            <QualityIndicator
-              qualityCheck={lastQualityCheck}
-              className="mt-4 rounded-lg border p-3"
-            />
+            <div className="flex items-center justify-between">
+              <button
+                type="submit"
+                disabled={
+                  !sourceContent.trim() || isScrapingChapter || isTranslating
+                }
+                className="flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isTranslating ? (
+                  <>
+                    <FiRefreshCw className="mr-2 animate-spin" />
+                    {isAutoRetrying
+                      ? `Attempt ${autoRetryAttempt}/5...`
+                      : 'Translating...'}
+                  </>
+                ) : (
+                  <>
+                    <FiDownload className="mr-2" />
+                    Translate
+                  </>
+                )}
+              </button>
+
+              {lastTokenUsage && <TokenUsage tokenUsage={lastTokenUsage} />}
+            </div>
+          </form>
+
+          {lastQualityCheck && (
+            <QualityIndicator qualityCheck={lastQualityCheck} />
           )}
-        </form>
+        </div>
       )}
     </div>
   );

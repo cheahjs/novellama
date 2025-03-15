@@ -25,7 +25,18 @@ export default async function handler(
       case 'GET':
         // Get all novels or a specific novel
         if (req.query.id) {
-          const novel = await getNovelById(req.query.id as string);
+          const chapterRange =
+            req.query.chapterStart && req.query.chapterEnd
+              ? {
+                  start: parseInt(req.query.chapterStart as string),
+                  end: parseInt(req.query.chapterEnd as string),
+                }
+              : undefined;
+
+          const novel = await getNovelById(
+            req.query.id as string,
+            chapterRange,
+          );
           if (!novel) {
             return res.status(404).json({ message: 'Novel not found' });
           }

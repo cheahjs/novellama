@@ -4,7 +4,14 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { FiArrowLeft, FiSettings } from 'react-icons/fi';
 import { Novel, TranslationChapter, NovelWithChapters } from '@/types';
-import { getNovel, saveNovel, addChapterToNovel, deleteChapter, updateChapter } from '@/services/storage';
+import {
+  getNovel,
+  saveNovel,
+  addChapterToNovel,
+  deleteChapter,
+  updateChapter,
+  getChapterTOC,
+} from '@/services/storage';
 import { translateContent } from '@/services/api';
 import TranslationEditor from '@/components/TranslationEditor';
 import ChapterNavigation from '@/components/ChapterNavigation';
@@ -15,7 +22,7 @@ export default function TranslatePage() {
   const router = useRouter();
   const { id, chapter } = router.query;
 
-  const [novel, setNovel] = useState<NovelWithChapters | null>(null);
+  const [novel, setNovel] = useState<Novel | null>(null);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [currentChapterNumber, setCurrentChapterNumber] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -23,32 +30,97 @@ export default function TranslatePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [isBatchTranslating, setIsBatchTranslating] = useState(false);
   const [shouldCancelBatch, setShouldCancelBatch] = useState(false);
+  const [chapterMetadata, setChapterMetadata] = useState<
+    Array<{ number: number; title: string }>
+  >([]);
+  const [loadedChapters, setLoadedChapters] = useState<TranslationChapter[]>(
+    [],
+  );
+
+  // Load chapter metadata (for table of contents)
+  const loadChapterMetadata = useCallback(async (novelId: string) => {
+    try {
+      const metadata = await getChapterTOC(novelId);
+      setChapterMetadata(metadata);
+      return metadata;
+    } catch (error) {
+      console.error('Failed to load chapter metadata:', error);
+      toast.error('Failed to load chapter list');
+      return [];
+    }
+  }, []);
+
+  // Load specific chapters
+  const loadChapters = useCallback(
+    async (novelId: string, targetIndex: number) => {
+      try {
+        // Load the target chapter and its neighbors
+        const start = Math.max(targetIndex - 1, 0);
+        const end = targetIndex + 1;
+
+        const loadedNovel = await getNovel(novelId, {
+          start: start + 1,
+          end: end + 1,
+        });
+        if (loadedNovel && loadedNovel.chapters) {
+          setLoadedChapters((prevChapters) => {
+            // Merge new chapters with existing ones
+            const newChapters = [...prevChapters];
+            loadedNovel.chapters.forEach((chapter) => {
+              const index = newChapters.findIndex(
+                (c) => c.number === chapter.number,
+              );
+              if (index >= 0) {
+                newChapters[index] = chapter;
+              } else {
+                newChapters.push(chapter);
+              }
+            });
+            return newChapters.sort((a, b) => a.number - b.number);
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load chapters:', error);
+        toast.error('Failed to load chapters');
+      }
+    },
+    [],
+  );
 
   const loadNovel = useCallback(
     async (novelId?: string) => {
       if (!novelId) return;
 
       try {
+        // First load the novel metadata
         const loadedNovel = await getNovel(novelId);
         if (loadedNovel) {
           setNovel(loadedNovel);
-          // If chapter is specified in URL, navigate to it
+
+          // Load chapter metadata
+          const metadata = await loadChapterMetadata(novelId);
+
+          // Determine initial chapter index
+          let initialIndex = 0;
           if (chapter !== undefined) {
             const chapterIndex =
               typeof chapter === 'string' ? parseInt(chapter) - 1 : 0;
             if (
               !isNaN(chapterIndex) &&
               chapterIndex >= 0 &&
-              chapterIndex < (loadedNovel.chapters?.length || 0)
+              chapterIndex < metadata.length
             ) {
-              setCurrentChapterIndex(chapterIndex);
-              setCurrentChapterNumber(chapterIndex + 1);
+              initialIndex = chapterIndex;
             }
-          } else if (loadedNovel.chapters?.length > 0) {
-            // Default to latest chapter if no chapter specified
-            setCurrentChapterIndex(loadedNovel.chapters.length - 1);
-            setCurrentChapterNumber(loadedNovel.chapters.length);
+          } else if (metadata.length > 0) {
+            initialIndex = metadata.length - 1;
           }
+
+          setCurrentChapterIndex(initialIndex);
+          setCurrentChapterNumber(initialIndex + 1);
+
+          // Load initial chapters
+          await loadChapters(novelId, initialIndex);
         } else {
           toast.error('Novel not found');
           router.push('/');
@@ -61,7 +133,7 @@ export default function TranslatePage() {
         setIsLoadingNovel(false);
       }
     },
-    [router, chapter],
+    [router, chapter, loadChapterMetadata, loadChapters],
   );
 
   useEffect(() => {
@@ -360,22 +432,24 @@ export default function TranslatePage() {
     setShouldCancelBatch(true);
   };
 
-  const handleNavigate = (index: number) => {
+  const handleNavigate = async (index: number) => {
     if (!novel) return;
 
-    if (index >= (novel.chapters?.length || 0)) {
-      // When creating a new chapter, update URL and indices
-      setCurrentChapterNumber(currentChapterNumber + 1);
-      setCurrentChapterIndex(novel.chapters?.length || 0);
-      router.push(
-        `/translate/${novel.id}/${(novel.chapters?.length || 0) + 1}`,
-      );
-    } else if (index >= 0 && index < (novel.chapters?.length || 0)) {
-      // When navigating existing chapters, update URL and indices
-      setCurrentChapterIndex(index);
-      setCurrentChapterNumber(index + 1);
-      router.push(`/translate/${novel.id}/${index + 1}`);
-    }
+    setCurrentChapterIndex(index);
+    setCurrentChapterNumber(index + 1);
+
+    // Load chapters if needed
+    await loadChapters(novel.id, index);
+
+    // Update URL without reloading
+    router.push(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, chapter: index + 1 },
+      },
+      undefined,
+      { shallow: true },
+    );
   };
 
   const handleDeleteLatest = async () => {
@@ -429,6 +503,10 @@ export default function TranslatePage() {
     }
   };
 
+  // Ensure chapters is always an array of TranslationChapter
+  const currentChapter =
+    loadedChapters.find((c) => c.number === currentChapterNumber) || null;
+
   // Show loading state or not found message
   if (isLoadingNovel) {
     return (
@@ -449,77 +527,66 @@ export default function TranslatePage() {
     );
   }
 
-  // Ensure chapters is always an array of TranslationChapter
-  const chapters: TranslationChapter[] = novel.chapters || [];
-  const currentChapter = chapters[currentChapterIndex] || null;
-
   return (
-    <div>
+    <div className="min-h-screen bg-gray-900 text-gray-100">
       <Head>
-        <title>{novel.title} - Novellama</title>
+        <title>
+          {novel.title} - Chapter {currentChapterNumber} - NovelLama
+        </title>
       </Head>
 
-      <main className="container mx-auto max-w-3xl px-4 py-8">
-        <Toaster position="top-right" />
+      <Toaster />
 
-        <div className="mb-6 flex items-center justify-between">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between py-4">
           <Link
             href="/"
-            className="flex items-center text-blue-600 hover:underline"
+            className="flex items-center space-x-2 text-gray-400 hover:text-gray-300"
           >
-            <FiArrowLeft className="mr-1" /> Back to Novels
+            <FiArrowLeft className="h-5 w-5" />
+            <span>Back to Novels</span>
           </Link>
+
+          <h1 className="text-xl font-bold">{novel.title}</h1>
 
           <button
             onClick={() => setShowSettings(true)}
-            className="flex items-center text-gray-600 hover:text-gray-200"
+            className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-gray-300"
           >
-            <FiSettings className="mr-1" /> Settings
+            <FiSettings className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">{novel.title}</h1>
-          <p className="text-gray-600">
-            {novel.sourceLanguage} → {novel.targetLanguage}
-          </p>
-        </div>
-
         <ChapterNavigation
           currentIndex={currentChapterIndex}
-          totalChapters={novel.chapters?.length || 0}
+          totalChapters={chapterMetadata.length}
           onNavigate={handleNavigate}
-          chapters={novel.chapters || []}
-          onDeleteLatest={handleDeleteLatest}
+          chapters={chapterMetadata}
+          onDeleteLatest={
+            currentChapterIndex === chapterMetadata.length - 1
+              ? handleDeleteLatest
+              : undefined
+          }
         />
 
         <TranslationEditor
-          novel={novel}
-          currentChapter={currentChapter}
-          currentChapterNumber={currentChapterNumber}
-          onTranslate={handleTranslate}
+          chapter={currentChapter}
           onSaveEdit={handleSaveEdit}
-          isLoading={isTranslating}
-          onBatchTranslate={novel?.sourceUrl ? handleBatchTranslate : undefined}
+          onTranslate={handleTranslate}
+          isTranslating={isTranslating}
           isBatchTranslating={isBatchTranslating}
+          onBatchTranslate={handleBatchTranslate}
           onCancelBatchTranslate={handleCancelBatchTranslate}
         />
+      </div>
 
-        <ChapterNavigation
-          currentIndex={currentChapterIndex}
-          totalChapters={novel.chapters?.length || 0}
-          onNavigate={handleNavigate}
-          chapters={novel.chapters || []}
-          onDeleteLatest={handleDeleteLatest}
-        />
-
+      {showSettings && novel && (
         <NovelSettings
           novel={novel}
-          onSave={updateNovelSettings}
-          isOpen={showSettings}
           onClose={() => setShowSettings(false)}
+          onUpdate={updateNovelSettings}
         />
-      </main>
+      )}
     </div>
   );
 }
