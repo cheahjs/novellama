@@ -441,15 +441,19 @@ export default function TranslatePage() {
     // Load chapters if needed
     await loadChapters(novel.id, index);
 
-    // Update URL without reloading
-    router.push(
-      {
-        pathname: router.pathname,
-        query: { ...router.query, chapter: index + 1 },
-      },
-      undefined,
-      { shallow: true },
-    );
+    // Update URL without reloading and scroll to top after navigation completes
+    router
+      .push(
+        {
+          pathname: router.pathname,
+          query: { ...router.query, chapter: index + 1 },
+        },
+        undefined,
+        { shallow: true },
+      )
+      .then(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
   };
 
   const handleDeleteLatest = async () => {
@@ -537,7 +541,7 @@ export default function TranslatePage() {
 
       <Toaster />
 
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto max-w-4xl px-4">
         <div className="flex items-center justify-between py-4">
           <Link
             href="/"

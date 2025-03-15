@@ -185,7 +185,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
   return (
     <div className="mt-6 space-y-4">
-      {chapter ? (
+      {chapter && !isRetranslating ? (
         <div className="rounded-lg border p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
@@ -234,23 +234,35 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   </>
                 )}
               </button>
-              <button
-                type="button"
-                onClick={handleRetranslate}
-                className="flex items-center text-sm text-gray-500 hover:text-gray-700"
-              >
-                <FiRefreshCw className="mr-1" /> Retranslate
-              </button>
             </div>
           </div>
 
-          {showSource ? (
-            <div className="prose prose-invert max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+          {showSource && (
+            <div className="relative mb-4">
+              <div className="rounded bg-gray-900 p-3 text-sm whitespace-pre-wrap text-gray-100">
                 {chapter.sourceContent}
+              </div>
+              <button
+                type="button"
+                onClick={handleRetranslate}
+                className="absolute top-2 right-2 flex items-center rounded bg-gray-700 p-1.5 text-sm text-white hover:bg-gray-600"
+                title="Retranslate this text"
+                disabled={isTranslating}
+              >
+                <FiRefreshCw className="mr-1" />{' '}
+                {isTranslating ? 'Translating...' : 'Retranslate'}
+              </button>
+            </div>
+          )}
+
+          {!showSource && !isEditing && (
+            <div className="prose prose-invert translation-content max-w-none">
+              <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                {chapter.translatedContent}
               </ReactMarkdown>
             </div>
-          ) : isEditing ? (
+          )}
+          {!showSource && isEditing && (
             <div className="space-y-4">
               <input
                 type="text"
@@ -266,97 +278,95 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                 placeholder="Chapter content"
               />
             </div>
-          ) : (
-            <div className="prose prose-invert max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkBreaks]}>
-                {chapter.translatedContent}
-              </ReactMarkdown>
-            </div>
           )}
         </div>
       ) : (
-        <div className="space-y-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium">New Chapter</h2>
-              <div className="flex items-center gap-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              value={sourceContent}
+              onChange={(e) => setSourceContent(e.target.value)}
+              placeholder={
+                isTranslating ? 'Translating...' : 'Enter text to translate...'
+              }
+              className="h-40 w-full rounded-lg border p-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+              disabled={isTranslating}
+            />
+            <div className="absolute top-2 right-2">
+              <LiveTokenCounter
+                text={sourceContent}
+                className="rounded bg-gray-800 px-2 py-1"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="useAutoRetry"
+                checked={useAutoRetry}
+                onChange={(e) => setUseAutoRetry(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="useAutoRetry" className="text-sm text-gray-300">
+                Auto-retry translation until good quality (max 5 attempts)
+              </label>
+            </div>
+
+            {isRetranslating && chapter?.qualityCheck && (
+              <>
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="useAutoRetry"
-                    checked={useAutoRetry}
-                    onChange={(e) => setUseAutoRetry(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    id="useExistingTranslation"
+                    checked={useExistingTranslation}
+                    onChange={(e) =>
+                      setUseExistingTranslation(e.target.checked)
+                    }
+                    className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
                   />
                   <label
-                    htmlFor="useAutoRetry"
-                    className="text-sm text-gray-400"
+                    htmlFor="useExistingTranslation"
+                    className="text-sm text-gray-300"
                   >
-                    Auto-retry until good quality
+                    Use existing translation for first attempt
                   </label>
                 </div>
-                {onBatchTranslate && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={batchCount}
-                      onChange={(e) =>
-                        setBatchCount(Math.max(1, parseInt(e.target.value)))
-                      }
-                      className="w-16 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
-                      min="1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => onBatchTranslate(batchCount, useAutoRetry)}
-                      disabled={isBatchTranslating}
-                      className="flex items-center rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isBatchTranslating ? (
-                        <>
-                          <FiRefreshCw className="mr-2 animate-spin" />
-                          Translating...
-                        </>
-                      ) : (
-                        <>
-                          <FiPlayCircle className="mr-2" />
-                          Batch Translate
-                        </>
-                      )}
-                    </button>
-                    {isBatchTranslating && onCancelBatchTranslate && (
-                      <button
-                        type="button"
-                        onClick={onCancelBatchTranslate}
-                        className="text-sm text-red-400 hover:text-red-500"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="useImprovementFeedback"
+                    checked={useImprovementFeedback}
+                    onChange={(e) =>
+                      setUseImprovementFeedback(e.target.checked)
+                    }
+                    className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label
+                    htmlFor="useImprovementFeedback"
+                    className="text-sm text-gray-300"
+                  >
+                    Use feedback for improvement in retries
+                  </label>
+                </div>
+              </>
+            )}
+          </div>
 
-            <div className="relative">
-              <textarea
-                ref={textareaRef}
-                value={sourceContent}
-                onChange={(e) => setSourceContent(e.target.value)}
-                className="h-96 w-full rounded border bg-gray-800 px-3 py-2 text-gray-100"
-                placeholder="Paste source content here..."
-              />
-              <div className="absolute right-2 bottom-2">
-                <LiveTokenCounter text={sourceContent} />
-              </div>
+          {isAutoRetrying && (
+            <div className="mt-2 text-sm text-gray-400">
+              Attempt {autoRetryAttempt}/5 - Trying to achieve good quality
+              translation...
             </div>
+          )}
 
-            <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <button
                 type="submit"
-                disabled={
-                  !sourceContent.trim() || isScrapingChapter || isTranslating
-                }
+                disabled={!sourceContent.trim() || isTranslating}
                 className="flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isTranslating ? (
@@ -373,15 +383,71 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   </>
                 )}
               </button>
-
-              {lastTokenUsage && <TokenUsage tokenUsage={lastTokenUsage} />}
+              {isRetranslating && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRetranslating(false);
+                    setSourceContent('');
+                  }}
+                  className="flex items-center rounded border border-gray-600 px-4 py-2 text-gray-300 hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
-          </form>
 
-          {lastQualityCheck && (
-            <QualityIndicator qualityCheck={lastQualityCheck} />
+            {onBatchTranslate && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={batchCount}
+                  onChange={(e) =>
+                    setBatchCount(Math.max(1, parseInt(e.target.value)))
+                  }
+                  className="w-16 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
+                  min="1"
+                />
+                <button
+                  type="button"
+                  onClick={() => onBatchTranslate(batchCount, useAutoRetry)}
+                  disabled={isBatchTranslating}
+                  className="flex items-center rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isBatchTranslating ? (
+                    <>
+                      <FiRefreshCw className="mr-2 animate-spin" />
+                      Translating...
+                    </>
+                  ) : (
+                    <>
+                      <FiPlayCircle className="mr-2" />
+                      Batch Translate
+                    </>
+                  )}
+                </button>
+                {isBatchTranslating && onCancelBatchTranslate && (
+                  <button
+                    type="button"
+                    onClick={onCancelBatchTranslate}
+                    className="text-sm text-red-400 hover:text-red-500"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {lastTokenUsage && <TokenUsage tokenUsage={lastTokenUsage} />}
+
+          {lastQualityCheck && isRetranslating && (
+            <QualityIndicator
+              qualityCheck={lastQualityCheck}
+              className="mt-4 rounded-lg border p-3"
+            />
           )}
-        </div>
+        </form>
       )}
     </div>
   );
