@@ -31,6 +31,32 @@ async function makeTranslationRequest(
       model,
       messages,
       temperature,
+      ...(model.includes('gemini')
+        ? {
+            safetySettings: [
+              {
+                category: 'HARM_CATEGORY_HARASSMENT',
+                threshold: 'BLOCK_NONE',
+              },
+              {
+                category: 'HARM_CATEGORY_HATE_SPEECH',
+                threshold: 'BLOCK_NONE',
+              },
+              {
+                category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                threshold: 'BLOCK_NONE',
+              },
+              {
+                category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                threshold: 'BLOCK_NONE',
+              },
+              {
+                category: 'HARM_CATEGORY_CIVIC_INTEGRITY',
+                threshold: 'BLOCK_NONE',
+              }
+            ],
+          }
+        : {}),
     },
     {
       headers: {
@@ -135,7 +161,7 @@ Remember: Your response must contain ONLY the improved translation text.`;
     },
     {
       role: 'user' as const,
-      content: `${referencesText}\n\nYou may be provided examples of previous translations. Use them to help with the translation.`,
+      content: `${referencesText}${context.length > 0 ? '\n\nYou are provided the the translations of previous chapters. Use them to help with guide translation.' : ''}`,
     },
     ...context,
     {
@@ -220,14 +246,20 @@ export default async function handler(
     const translation = apiResponse.data.choices[0].message.content;
     // Extract token usage from the response
     const tokenUsage = apiResponse.data.usage;
-    console.log('response', {
-      apiResponse,
+    console.log('translation response', {
+      responseHeaders: apiResponse.headers,
+      responseBody: apiResponse.data,
       usage: tokenUsage,
+      finishReason: apiResponse.data.choices[0].finish_reason,
+      safetyResults: JSON.stringify(apiResponse.data.vertex_ai_safety_results),
     });
+
+    // Post process the translation to remove any known issues
+    const postProcessedTranslation = postProcessTranslation(translation);
 
     // Return the translation along with the novel's language settings for quality check
     return res.status(200).json({
-      translation,
+      translation: postProcessedTranslation,
       tokenUsage,
       sourceLanguage: novel.sourceLanguage,
       targetLanguage: novel.targetLanguage,
@@ -236,6 +268,7 @@ export default async function handler(
         task: tokenCounts.task,
         translation: tokenCounts.translation,
       },
+      finishReason: apiResponse.data.choices[0].finish_reason,
     });
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
@@ -251,4 +284,10 @@ export default async function handler(
       error: message,
     });
   }
+}
+
+function postProcessTranslation(translation: string) {
+  // Remove any XML like tags including closing tags
+  translation = translation.replace(/<\/?[^>]*>/g, '');
+  return translation;
 }
