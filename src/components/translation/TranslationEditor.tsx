@@ -288,8 +288,10 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
           {showSource && displayedChapter && (
             <div className="relative mb-4">
-              <div className="rounded bg-gray-900 p-3 text-sm whitespace-pre-wrap text-gray-100">
-                {displayedChapter.sourceContent}
+              <div className="prose prose-invert translation-content max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                  {displayedChapter.sourceContent}
+                </ReactMarkdown>
               </div>
               <button
                 type="button"

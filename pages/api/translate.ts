@@ -102,14 +102,15 @@ async function constructMessages(
     request.qualityFeedback &&
     request.useImprovementFeedback
   ) {
-    improvementPrompt = `Here is a previous translation attempt with quality feedback. Please improve upon this translation addressing the issues mentioned:
-Previous translation:
+    improvementPrompt = `Apply the following feedback to improve the translation. Do not discuss the feedback or explain your changes - just incorporate them into your translation:
 
+PREVIOUS TRANSLATION:
 ${request.previousTranslation}
 
-Quality feedback:
+FEEDBACK TO ADDRESS:
 ${request.qualityFeedback}
-`;
+
+Remember: Your response must contain ONLY the improved translation text.`;
   }
 
   const translationTemplate =
