@@ -37,10 +37,14 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAddReference = (reference: Omit<Reference, 'id' | 'createdAt' | 'updatedAt' | 'tokenCount'>) => {
+  const handleAddReference = (
+    reference: Omit<Reference, 'id' | 'createdAt' | 'updatedAt' | 'tokenCount'>,
+  ) => {
     const newReference: Reference = {
       ...reference,
       id: crypto.randomUUID(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
     };
     setFormData((prev) => ({
       ...prev,

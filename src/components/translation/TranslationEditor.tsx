@@ -82,10 +82,10 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       // Update content states
       setEditTitle(chapter.title);
       setEditContent(chapter.translatedContent);
-      
+
       // Update displayed chapter immediately when chapter prop changes
       setDisplayedChapter(chapter);
-      
+
       // Set the quality check from the current chapter if available
       setLastQualityCheck(chapter.qualityCheck ?? undefined);
     } else {
@@ -164,7 +164,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         } else {
           // Regular single translation attempt
           const previousTranslationData =
-            isRetranslating && displayedChapter?.qualityCheck && useExistingTranslation
+            isRetranslating &&
+            displayedChapter?.qualityCheck &&
+            useExistingTranslation
               ? {
                   previousTranslation: displayedChapter.translatedContent,
                   qualityFeedback: displayedChapter.qualityCheck.feedback,
@@ -243,7 +245,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
             <div>
               {/* Only show quality indicator if we have a current chapter with quality data */}
               {displayedChapter?.qualityCheck && (
-                <QualityIndicator qualityCheck={displayedChapter.qualityCheck} />
+                <QualityIndicator
+                  qualityCheck={displayedChapter.qualityCheck}
+                />
               )}
             </div>
             <div className="flex items-center gap-2">

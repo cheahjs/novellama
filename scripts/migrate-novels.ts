@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import type { Novel, NovelWithChapters } from '../src/types/index.js';
+import type { Novel, NovelWithChapters } from '@/types';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const OLD_NOVELS_FILE = path.join(DATA_DIR, 'novels.json');

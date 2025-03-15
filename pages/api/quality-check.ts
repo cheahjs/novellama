@@ -62,16 +62,29 @@ async function getQualityCheck(
   const systemPrompt = `You are a professional translator quality checker. 
 You will be given a source text in ${sourceLanguage} and its translation in ${targetLanguage}.
 Evaluate the translation quality focusing on accuracy, fluency, and completeness.
+This is a quality check of a single chapter of a novel. Note that you may not have the context of the entire novel, so some terminology such as names and places may not be familiar.
+This is of a webnovel, so an author may have comments at the start and end of the chapter, these are acceptable.
+
+The source text will be provided in <source> tags, and the translation will be provided in <translation> tags.
 
 Consider:
 1. Accuracy: Does it faithfully represent the original content?
 2. Fluency: Is it natural in the target language?
-3. Completeness: Was anything omitted or added inappropriately? The translation should be complete and not missing any important information or be truncated.
+3. Completeness: Was anything omitted or added inappropriately? 
+   - IMPORTANT: Compare the source and translation line by line, especially the first and last lines
+   - Check that paragraph breaks match between source and translation
+   - Be aware that some sentences might be split differently due to language differences
+   - Count the number of paragraphs in both source and translation to ensure none are missing
 4. Title: The title must be translated. If the title translation deviates from the source title (such as an irrelevant translation or incorrect numbering), this is a significant issue and should not score higher than 7.
-5. Extranous content: If there's extranous content in the translation, this is a significant issue and should not score higher than 7. Extranous content is content that is not part of the source content, for example if it appears that the contents of another chapter is included in the translation.
+5. Extraneous content: If there's extraneous content in the translation, this is a significant issue and should not score higher than 7. Extraneous content is content that is not part of the source content, for example if it appears that the contents of another chapter is included in the translation.
+   - Author comments at the start and end of the chapter are acceptable and are not considered extraneous content.
 6. The content inside of <translation> tags must only contain the translation, and not any other content such as feedback or the source content. If there is any other content, this is a significant issue and should not score higher than 7. Don't mention the translation tags in the feedback - the translator does not see the tags.
-6. Completeness check: Verify that the ENTIRE source content has been translated. If the translation appears truncated or incomplete, this is a critical issue and should not score higher than 5.
 7. Meta-commentary: The translation should not contain any meta-commentary about the translation process, feedback incorporation, or translator notes. If it does, this is a significant issue and should not score higher than 7.
+
+Before assigning a score below 8 for missing content:
+- Double-check that you're not missing content due to different sentence structures between languages
+- Verify that what appears to be missing isn't actually rephrased or combined with another sentence
+- Check if the apparent missing content isn't actually present in a slightly different location
 
 Rate the translation on a scale from 0 to 10 and provide brief feedback, where anything below 8 indicates that the translation is not of good quality and should be re-translated.
 

@@ -105,10 +105,14 @@ async function constructMessages(
     improvementPrompt = `Apply the following feedback to improve the translation. Do not discuss the feedback or explain your changes - just incorporate them into your translation:
 
 PREVIOUS TRANSLATION:
+<previous_translation>
 ${request.previousTranslation}
+</previous_translation>
 
 FEEDBACK TO ADDRESS:
+<feedback>
 ${request.qualityFeedback}
+</feedback>
 
 Remember: Your response must contain ONLY the improved translation text.`;
   }
@@ -166,10 +170,14 @@ export default async function handler(
     }
 
     // Fetch the novel first to get all the metadata
-    const novel = await getNovel(request.novelId, {
-      start: 0,
-      end: 999999, // Large number to ensure we get all chapters
-    }, req);
+    const novel = await getNovel(
+      request.novelId,
+      {
+        start: 0,
+        end: 999999, // Large number to ensure we get all chapters
+      },
+      req,
+    );
     if (!novel) {
       return res.status(404).json({ message: 'Novel not found' });
     }

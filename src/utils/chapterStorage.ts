@@ -13,9 +13,7 @@ export async function saveChapter(
   // Start transaction
   const transaction = db.transaction(() => {
     // First check if the novel exists
-    const novel = db.prepare(
-      `SELECT id FROM novels WHERE id = ?`
-    ).get(novelId);
+    const novel = db.prepare(`SELECT id FROM novels WHERE id = ?`).get(novelId);
 
     if (!novel) {
       throw new Error(`Novel with ID ${novelId} not found`);
@@ -25,8 +23,9 @@ export async function saveChapter(
     const chapterId = chapter.id || nanoid();
 
     // First, insert or update the chapter and get the result
-    const chapterResult = db.prepare(
-      `
+    const chapterResult = db
+      .prepare(
+        `
       INSERT INTO chapters (
         id, novelId, number, title,
         sourceContent, translatedContent,
@@ -40,23 +39,24 @@ export async function saveChapter(
         updatedAt = excluded.updatedAt
       RETURNING id
     `,
-    ).get(
-      chapterId,
-      novelId,
-      chapter.number,
-      chapter.title,
-      chapter.sourceContent,
-      chapter.translatedContent,
-      chapter.createdAt || now,
-      now,
-    ) as { id: string };
+      )
+      .get(
+        chapterId,
+        novelId,
+        chapter.number,
+        chapter.title,
+        chapter.sourceContent,
+        chapter.translatedContent,
+        chapter.createdAt || now,
+        now,
+      ) as { id: string };
 
     // If there's a quality check, save it using the confirmed chapter ID
     if (chapter.qualityCheck) {
       // First delete any existing quality checks for this chapter
-      db.prepare(
-        `DELETE FROM quality_checks WHERE chapterId = ?`
-      ).run(chapterResult.id);
+      db.prepare(`DELETE FROM quality_checks WHERE chapterId = ?`).run(
+        chapterResult.id,
+      );
 
       // Then insert the new quality check
       db.prepare(

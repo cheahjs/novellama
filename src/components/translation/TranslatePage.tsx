@@ -55,9 +55,12 @@ export default function TranslatePage() {
       try {
         // If we're creating a new chapter (index beyond current chapters), don't load anything
         // But only apply this check if we have metadata loaded
-        if (chapterMetadata.length > 0 && targetIndex >= chapterMetadata.length) {
-          setLoadedChapters(prevChapters => 
-            prevChapters.filter(ch => ch.number <= chapterMetadata.length)
+        if (
+          chapterMetadata.length > 0 &&
+          targetIndex >= chapterMetadata.length
+        ) {
+          setLoadedChapters((prevChapters) =>
+            prevChapters.filter((ch) => ch.number <= chapterMetadata.length),
           );
           return;
         }
@@ -167,16 +170,18 @@ export default function TranslatePage() {
       await addChapterToNovel(novel.id, updatedChapter);
 
       // Update the loadedChapters state with the new content
-      setLoadedChapters(prevChapters => {
-        return prevChapters.map(ch => 
-          ch.number === updatedChapter.number ? updatedChapter : ch
+      setLoadedChapters((prevChapters) => {
+        return prevChapters.map((ch) =>
+          ch.number === updatedChapter.number ? updatedChapter : ch,
         );
       });
 
       // Update the chapter metadata to reflect the new title
-      setChapterMetadata(prevMetadata => {
-        return prevMetadata.map(ch => 
-          ch.number === updatedChapter.number ? { number: updatedChapter.number, title: updatedChapter.title } : ch
+      setChapterMetadata((prevMetadata) => {
+        return prevMetadata.map((ch) =>
+          ch.number === updatedChapter.number
+            ? { number: updatedChapter.number, title: updatedChapter.title }
+            : ch,
         );
       });
 
@@ -233,16 +238,18 @@ export default function TranslatePage() {
         await updateChapter(novel.id, updatedChapter);
 
         // Update the loadedChapters state with the new translation
-        setLoadedChapters(prevChapters => {
-          return prevChapters.map(ch => 
-            ch.number === updatedChapter.number ? updatedChapter : ch
+        setLoadedChapters((prevChapters) => {
+          return prevChapters.map((ch) =>
+            ch.number === updatedChapter.number ? updatedChapter : ch,
           );
         });
 
         // Update the chapter metadata to reflect the new title
-        setChapterMetadata(prevMetadata => {
-          return prevMetadata.map(ch => 
-            ch.number === updatedChapter.number ? { number: updatedChapter.number, title: updatedChapter.title } : ch
+        setChapterMetadata((prevMetadata) => {
+          return prevMetadata.map((ch) =>
+            ch.number === updatedChapter.number
+              ? { number: updatedChapter.number, title: updatedChapter.title }
+              : ch,
           );
         });
 
@@ -270,10 +277,13 @@ export default function TranslatePage() {
         await addChapterToNovel(novel.id, newChapter);
 
         // Update the chapter metadata to include the new chapter
-        setChapterMetadata(prevMetadata => [...prevMetadata, { number: newChapter.number, title: newChapter.title }]);
+        setChapterMetadata((prevMetadata) => [
+          ...prevMetadata,
+          { number: newChapter.number, title: newChapter.title },
+        ]);
 
         // Update loaded chapters to include the new one
-        setLoadedChapters(prevChapters => [...prevChapters, newChapter]);
+        setLoadedChapters((prevChapters) => [...prevChapters, newChapter]);
 
         // Reload the novel to get the updated chapters
         const updatedNovel = await getNovel(novel.id);
@@ -447,10 +457,13 @@ export default function TranslatePage() {
         await addChapterToNovel(novel.id, newChapter);
 
         // Update the chapter metadata to include the new chapter
-        setChapterMetadata(prevMetadata => [...prevMetadata, { number: newChapter.number, title: newChapter.title }]);
+        setChapterMetadata((prevMetadata) => [
+          ...prevMetadata,
+          { number: newChapter.number, title: newChapter.title },
+        ]);
 
         // Update loaded chapters to include the new one
-        setLoadedChapters(prevChapters => [...prevChapters, newChapter]);
+        setLoadedChapters((prevChapters) => [...prevChapters, newChapter]);
 
         // Reload the novel to get updated chapters
         const updatedNovel = await getNovel(novel.id);
@@ -502,10 +515,10 @@ export default function TranslatePage() {
 
   const handleDeleteLatest = async () => {
     if (!novel) return;
-    
+
     // Get the latest chapter from metadata
     if (chapterMetadata.length === 0) return;
-    
+
     if (
       !confirm(
         'Are you sure you want to delete the latest chapter? This action cannot be undone.',

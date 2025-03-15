@@ -75,7 +75,10 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
 
       if (event.key === 'ArrowLeft') {
         handlePrevious();
-      } else if (event.key === 'ArrowRight' && currentChapter <= totalChapters) {
+      } else if (
+        event.key === 'ArrowRight' &&
+        currentChapter <= totalChapters
+      ) {
         handleNext();
       }
     };
@@ -86,7 +89,9 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
     };
   }, [handlePrevious, handleNext, currentChapter, totalChapters]);
 
-  const currentChapterData = chapters.find(ch => ch.number === currentChapter);
+  const currentChapterData = chapters.find(
+    (ch) => ch.number === currentChapter,
+  );
 
   return (
     <div className="relative flex items-stretch py-4">

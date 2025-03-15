@@ -31,7 +31,13 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({
         toast.error('Please fill in both title and content');
         return;
       }
-      onAdd({ title, content });
+      onAdd({
+        title,
+        content,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        novelId: initialReference?.novelId || '',
+      });
       setTitle('');
       setContent('');
     } else {
@@ -47,6 +53,9 @@ const ReferenceInput: React.FC<ReferenceInputProps> = ({
         onAdd({
           title: scrapedTitle || url,
           content: scrapedContent,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          novelId: initialReference?.novelId || '',
         });
         setUrl('');
       } catch (error) {
