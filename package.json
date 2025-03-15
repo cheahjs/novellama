@@ -13,9 +13,9 @@
     "migrate-to-sqlite": "NODE_OPTIONS='--loader ts-node/esm' ts-node --esm --project scripts/tsconfig.json scripts/migrate-to-sqlite.ts"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.4.0",
     "@mozilla/readability": "^0.6.0",
     "@types/better-sqlite3": "^7.6.12",
-    "@xenova/transformers": "^2.17.2",
     "axios": "^1.8.2",
     "better-sqlite3": "^11.8.1",
     "jsdom": "^26.0.0",

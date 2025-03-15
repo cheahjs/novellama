@@ -1,4 +1,4 @@
-import { AutoTokenizer, PreTrainedTokenizer } from '@xenova/transformers';
+import { AutoTokenizer, PreTrainedTokenizer } from '@huggingface/transformers';
 
 let tokenizer: PreTrainedTokenizer | null = null;
 

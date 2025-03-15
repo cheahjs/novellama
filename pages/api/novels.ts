@@ -47,7 +47,7 @@ export default async function handler(
           references: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          chapterCount: 0
+          chapterCount: 0,
         };
         await saveNovel(novel);
         return res.status(201).json(novel);

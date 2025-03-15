@@ -21,14 +21,27 @@ export const saveNovel = async (
 export const getNovel = async (
   id: string,
   chapterRange?: { start: number; end: number },
+  req?: { headers: { host?: string } },
 ): Promise<NovelWithChapters | null> => {
   try {
-    const params = new URLSearchParams({ id });
+    const params = new URLSearchParams();
+    params.append('id', id);
     if (chapterRange) {
       params.append('chapterStart', chapterRange.start.toString());
       params.append('chapterEnd', chapterRange.end.toString());
     }
-    const response = await axios.get(`/api/novels?${params.toString()}`);
+
+    // Use absolute URL when running on server side
+    const isServer = typeof window === 'undefined';
+    let url = '/api/novels';
+
+    if (isServer && req?.headers?.host) {
+      const protocol =
+        process.env.NODE_ENV === 'development' ? 'http' : 'https';
+      url = `${protocol}://${req.headers.host}/api/novels`;
+    }
+
+    const response = await axios.get(`${url}?${params.toString()}`);
     return response.data;
   } catch (error) {
     console.error('Failed to get novel:', error);

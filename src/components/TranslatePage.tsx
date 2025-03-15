@@ -111,25 +111,16 @@ export default function TranslatePage() {
     setIsTranslating(true);
 
     try {
-      // Remove the current chapter from the list of previous chapters
-      const previousChapters =
-        novel.chapters?.filter(
-          (chapter: TranslationChapter) => chapter.id !== currentChapter?.id,
-        ) ?? [];
       const result = await translateContent({
         sourceContent,
-        sourceLanguage: novel.sourceLanguage,
-        targetLanguage: novel.targetLanguage,
-        systemPrompt: novel.systemPrompt,
-        references: novel.references,
-        previousChapters: previousChapters,
-        translationTemplate: novel.translationTemplate,
+        novelId: novel.id,
+        currentChapterId: currentChapter?.id,
         ...previousTranslationData, // Spread the optional previous translation data
       });
       const translatedLines = result.translatedContent.split('\n');
       const title = translatedLines[0].startsWith('# ')
         ? translatedLines[0].substring(2)
-        : `Chapter ${currentChapter?.number || (novel.chapters?.length ? novel.chapters.length + 1 : 1)}`;
+        : `Chapter ${currentChapter?.number ?? (novel.chapters?.length ? novel.chapters.length + 1 : 1)}`;
 
       // Check if we're retranslating an existing chapter
       if (currentChapter) {
@@ -154,7 +145,7 @@ export default function TranslatePage() {
       } else {
         // Create a new chapter
         const chapterNumber =
-          currentChapter?.number ||
+          currentChapter?.number ??
           (novel.chapters?.length ? novel.chapters.length + 1 : 1);
 
         const newChapter: TranslationChapter = {
@@ -270,12 +261,7 @@ export default function TranslatePage() {
 
             const result = await translateContent({
               sourceContent,
-              sourceLanguage: novel.sourceLanguage,
-              targetLanguage: novel.targetLanguage,
-              systemPrompt: novel.systemPrompt,
-              references: novel.references,
-              previousChapters: novel.chapters,
-              translationTemplate: novel.translationTemplate,
+              novelId: novel.id,
               ...(bestResult
                 ? {
                     previousTranslation: bestResult.translatedContent,
@@ -312,23 +298,13 @@ export default function TranslatePage() {
             bestResult ||
             (await translateContent({
               sourceContent,
-              sourceLanguage: novel.sourceLanguage,
-              targetLanguage: novel.targetLanguage,
-              systemPrompt: novel.systemPrompt,
-              references: novel.references,
-              previousChapters: novel.chapters,
-              translationTemplate: novel.translationTemplate,
+              novelId: novel.id,
             }));
         } else {
           // Single translation attempt
           finalResult = await translateContent({
             sourceContent,
-            sourceLanguage: novel.sourceLanguage,
-            targetLanguage: novel.targetLanguage,
-            systemPrompt: novel.systemPrompt,
-            references: novel.references,
-            previousChapters: novel.chapters,
-            translationTemplate: novel.translationTemplate,
+            novelId: novel.id,
           });
         }
 
@@ -474,7 +450,9 @@ export default function TranslatePage() {
     );
   }
 
-  const currentChapter = novel.chapters?.[currentChapterIndex] || null;
+  // Ensure chapters is always an array of TranslationChapter
+  const chapters: TranslationChapter[] = novel.chapters || [];
+  const currentChapter = chapters[currentChapterIndex] || null;
 
   return (
     <div>

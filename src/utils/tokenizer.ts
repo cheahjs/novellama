@@ -1,44 +1,61 @@
-import { AutoTokenizer, PreTrainedTokenizer } from '@xenova/transformers';
+import { AutoTokenizer } from '@huggingface/transformers';
+import type { PreTrainedTokenizer } from '@huggingface/transformers';
 import assert from 'assert';
 
 let encoder: PreTrainedTokenizer | null = null;
 
-export async function initTokenizer(): Promise<PreTrainedTokenizer | null> {
+export async function initTokenizer(): Promise<PreTrainedTokenizer> {
   if (!encoder) {
     try {
       // Get model name from environment or use default
       const modelName = process.env.TOKENIZER_MODEL || 'Xenova/gpt-4o';
-      encoder = await AutoTokenizer.from_pretrained(modelName);
+
+      // For server-side usage, we need to ensure proper initialization
+      if (typeof window === 'undefined') {
+        // Initialize tokenizer for server environment
+        encoder = await AutoTokenizer.from_pretrained(modelName, {
+          progress_callback: undefined, // Disable progress updates for server
+        });
+      } else {
+        // Client-side initialization
+        encoder = await AutoTokenizer.from_pretrained(modelName);
+      }
     } catch (error) {
       console.error('Error initializing tokenizer:', error);
+      throw error; // Propagate the error to handle it upstream
     }
   }
   return encoder;
 }
 
-export async function countTokens(text: string): Promise<number> {
-  const enc = await initTokenizer();
-  if (!enc) {
-    throw new Error('Tokenizer not initialized');
-  }
-
-  const result = enc.encode(text);
-  return result.length;
+interface ChatMessage {
+  role: string;
+  content: string;
 }
 
 export async function countMessagesTokens(
-  messages: { role: string; content: string }[],
+  messages: ChatMessage[],
 ): Promise<number> {
-  const enc = await initTokenizer();
-  if (!enc) {
-    throw new Error('Tokenizer not initialized');
+  try {
+    const tokenizer = await initTokenizer();
+
+    // Count tokens for each message
+    const tokenCounts = messages
+      .map((message) => {
+        const encoded = tokenizer.encode(message.content);
+        return encoded.length;
+      })
+      .reduce((a, b) => a + b, 0);
+
+    return tokenCounts;
+  } catch (error) {
+    console.error('Error counting tokens:', error);
+    // Return a conservative estimate if tokenizer fails
+    return messages.reduce(
+      (acc, msg) => acc + Math.ceil(msg.content.length / 4),
+      0,
+    );
   }
-  console.log('counting tokens', { enc, messages });
-  const result = enc.apply_chat_template(messages, {
-    tokenize: true,
-    return_tensor: false,
-  });
-  return (result as number[]).length;
 }
 
 export async function truncateContext(

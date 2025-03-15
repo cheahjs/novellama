@@ -28,14 +28,17 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
   const [showActions, setShowActions] = useState(false);
   const isNavigatingRef = useRef(false);
 
-  const safeNavigate = useCallback((targetIndex: number) => {
-    if (isNavigatingRef.current) {
-      return;
-    }
+  const safeNavigate = useCallback(
+    (targetIndex: number) => {
+      if (isNavigatingRef.current) {
+        return;
+      }
 
-    isNavigatingRef.current = true;
-    onNavigate(targetIndex);
-  }, [onNavigate]);
+      isNavigatingRef.current = true;
+      onNavigate(targetIndex);
+    },
+    [onNavigate],
+  );
 
   useEffect(() => {
     isNavigatingRef.current = false;
