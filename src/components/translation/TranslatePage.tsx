@@ -211,6 +211,9 @@ export default function TranslatePage() {
 
     setIsTranslating(true);
 
+    // Create a persistent toast for tracking translation progress
+    const toastId = toast.loading('Starting translation...', { duration: Infinity });
+
     try {
       let finalResult;
       let bestResult;
@@ -219,7 +222,9 @@ export default function TranslatePage() {
 
       // If we're using auto-retry, try multiple times to get the best quality
       if (useAutoRetry) {
+        toast.loading('Using auto-retry to find best quality translation...', { id: toastId });
         while (currentAttempt < maxAttempts) {
+          toast.loading(`Translation attempt ${currentAttempt + 1}/${maxAttempts}...`, { id: toastId });
           const result = await translateContent({
             sourceContent,
             novelId: novel.id,
@@ -230,26 +235,32 @@ export default function TranslatePage() {
                 ? {
                     previousTranslation: bestResult.translatedContent,
                     qualityFeedback: bestResult.qualityCheck?.feedback || '',
-                    useImprovementFeedback:
-                      previousTranslationData?.useImprovementFeedback,
+                    useImprovementFeedback: previousTranslationData?.useImprovementFeedback,
                   }
                 : {}),
           });
 
-          if (
-            !bestResult ||
-            (result.qualityCheck?.score || 0) >
-              (bestResult.qualityCheck?.score || 0)
-          ) {
+          if (!bestResult || (result.qualityCheck?.score || 0) > (bestResult.qualityCheck?.score || 0)) {
             bestResult = result;
+            if (bestResult.qualityCheck) {
+              toast.loading(
+                `New best translation found (Quality: ${Math.round(bestResult.qualityCheck.score * 100)}%)`,
+                { id: toastId }
+              );
+            }
           }
 
           if (result.qualityCheck?.isGoodQuality) {
             finalResult = result;
+            toast.loading('Good quality translation found! Saving...', { id: toastId });
             break;
           }
 
           currentAttempt++;
+        }
+
+        if (!finalResult && bestResult) {
+          toast.loading('Using best translation found after all attempts...', { id: toastId });
         }
 
         // Use the best result if no good quality was achieved
@@ -264,6 +275,7 @@ export default function TranslatePage() {
           }));
       } else {
         // Single translation attempt
+        toast.loading('Translating content...', { id: toastId });
         finalResult = await translateContent({
           sourceContent,
           novelId: novel.id,
@@ -276,6 +288,8 @@ export default function TranslatePage() {
       const title = translatedLines[0].startsWith('# ')
         ? translatedLines[0].substring(2)
         : `Chapter ${currentChapter?.number ?? currentChapterNumber}`;
+
+      toast.loading('Saving translation...', { id: toastId });
 
       // Check if we're retranslating an existing chapter
       if (currentChapter) {
@@ -347,11 +361,19 @@ export default function TranslatePage() {
         }
       }
 
-      toast.success('Translation complete');
+      // Dismiss the progress toast and show success
+      toast.dismiss(toastId);
+      toast.success(
+        useAutoRetry
+          ? `Translation complete (${currentAttempt + 1} attempts)`
+          : 'Translation complete'
+      );
       setIsTranslating(false);
       return finalResult;
     } catch (error: unknown) {
       console.error('Translation error:', error);
+      // Dismiss the progress toast and show error
+      toast.dismiss(toastId);
       toast.error('Failed to translate content');
       throw error;
     } finally {
