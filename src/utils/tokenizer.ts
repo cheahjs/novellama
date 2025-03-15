@@ -14,7 +14,8 @@ export async function initTokenizer(): Promise<PreTrainedTokenizer> {
       if (typeof window === 'undefined') {
         // Initialize tokenizer for server environment
         encoder = await AutoTokenizer.from_pretrained(modelName, {
-          progress_callback: undefined, // Disable progress updates for server
+          progress_callback: undefined,
+          cache_dir: './data/cache',
         });
       } else {
         // Client-side initialization
