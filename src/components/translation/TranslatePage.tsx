@@ -54,7 +54,8 @@ export default function TranslatePage() {
     async (novelId: string, targetIndex: number) => {
       try {
         // If we're creating a new chapter (index beyond current chapters), don't load anything
-        if (targetIndex >= chapterMetadata.length) {
+        // But only apply this check if we have metadata loaded
+        if (chapterMetadata.length > 0 && targetIndex >= chapterMetadata.length) {
           setLoadedChapters(prevChapters => 
             prevChapters.filter(ch => ch.number <= chapterMetadata.length)
           );
@@ -124,14 +125,11 @@ export default function TranslatePage() {
             initialChapterNumber = metadata.length;
           }
 
-          // Only set these if we're not already at the target chapter
-          // This prevents resetting state when just the URL changes
-          if (currentChapterNumber !== initialChapterNumber) {
-            setCurrentChapterNumber(initialChapterNumber);
+          // Always set the current chapter number
+          setCurrentChapterNumber(initialChapterNumber);
 
-            // Load initial chapters
-            await loadChapters(novelId, initialChapterNumber - 1);
-          }
+          // Always load initial chapters on first load or chapter change
+          await loadChapters(novelId, initialChapterNumber - 1);
         } else {
           toast.error('Novel not found');
           router.push('/');
@@ -144,7 +142,7 @@ export default function TranslatePage() {
         setIsLoadingNovel(false);
       }
     },
-    [router, chapter, loadChapterMetadata, loadChapters, currentChapterNumber],
+    [router, chapter, loadChapterMetadata, loadChapters],
   );
 
   useEffect(() => {

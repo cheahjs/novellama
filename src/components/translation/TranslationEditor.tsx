@@ -83,19 +83,22 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       setEditTitle(chapter.title);
       setEditContent(chapter.translatedContent);
       
-      // Update displayed chapter
+      // Update displayed chapter immediately when chapter prop changes
       setDisplayedChapter(chapter);
       
       // Set the quality check from the current chapter if available
       setLastQualityCheck(chapter.qualityCheck ?? undefined);
     } else {
-      // Clear displayed chapter when moving to a new chapter
-      setDisplayedChapter(null);
-      setEditTitle('');
-      setEditContent('');
-      setLastQualityCheck(undefined);
+      // Only clear displayed chapter if we're explicitly moving to a new chapter
+      // (i.e., when nextChapterNumber is provided)
+      if (nextChapterNumber && !chapter) {
+        setDisplayedChapter(null);
+        setEditTitle('');
+        setEditContent('');
+        setLastQualityCheck(undefined);
+      }
     }
-  }, [chapter]);
+  }, [chapter, nextChapterNumber]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
