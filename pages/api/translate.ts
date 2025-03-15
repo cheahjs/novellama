@@ -53,7 +53,7 @@ async function makeTranslationRequest(
               {
                 category: 'HARM_CATEGORY_CIVIC_INTEGRITY',
                 threshold: 'BLOCK_NONE',
-              }
+              },
             ],
           }
         : {}),
@@ -97,8 +97,10 @@ async function constructMessages(
     );
 
     // Get the index of the current chapter
-    const currentChapterIndex = request.currentChapterId 
-      ? novel.chapters.findIndex(chapter => chapter.id === request.currentChapterId)
+    const currentChapterIndex = request.currentChapterId
+      ? novel.chapters.findIndex(
+          (chapter) => chapter.id === request.currentChapterId,
+        )
       : novel.chapters.length;
 
     // Format previous chunks as context
@@ -116,15 +118,19 @@ async function constructMessages(
         ],
         originalIndex: index,
         // Calculate distance from current chapter, if there is one
-        distanceFromCurrent: currentChapterIndex !== -1 
-          ? Math.abs(index - currentChapterIndex)
-          : index, // If no current chapter, use index as distance
+        distanceFromCurrent:
+          currentChapterIndex !== -1
+            ? Math.abs(index - currentChapterIndex)
+            : index, // If no current chapter, use index as distance
       }))
       // Sort by distance from current chapter, with closest chapters at the end
       .sort((a, b) => {
         const distanceWeight = 10; // Higher value means distance has more influence
         const randomFactor = (Math.random() - 0.5) * 0.2; // Small random factor for variety
-        return (b.distanceFromCurrent - a.distanceFromCurrent) * distanceWeight + randomFactor;
+        return (
+          (b.distanceFromCurrent - a.distanceFromCurrent) * distanceWeight +
+          randomFactor
+        );
       })
       .flatMap((item) => item.pair);
   }
@@ -204,13 +210,10 @@ export default async function handler(
     }
 
     // Fetch the novel first to get all the metadata
-    const novel = await getNovelById(
-      request.novelId,
-      {
-        start: 0,
-        end: 999999, // Large number to ensure we get all chapters
-      }
-    );
+    const novel = await getNovelById(request.novelId, {
+      start: 0,
+      end: 999999, // Large number to ensure we get all chapters
+    });
     if (!novel) {
       return res.status(404).json({ message: 'Novel not found' });
     }

@@ -21,6 +21,7 @@ interface TranslationEditorProps {
   chapter: TranslationChapter | null;
   onTranslate: (
     sourceContent: string,
+    useAutoRetry: boolean,
     previousTranslationData?: {
       previousTranslation?: string;
       qualityFeedback?: string;
@@ -30,7 +31,11 @@ interface TranslationEditorProps {
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
   isTranslating: boolean;
   onBatchTranslate?: (count: number, useAutoRetry: boolean) => Promise<void>;
-  onBatchRetranslate?: (startChapter: number, endChapter: number, useAutoRetry: boolean) => Promise<void>;
+  onBatchRetranslate?: (
+    startChapter: number,
+    endChapter: number,
+    useAutoRetry: boolean,
+  ) => Promise<void>;
   isBatchTranslating?: boolean;
   onCancelBatchTranslate?: () => void;
   novelSourceUrl?: string;
@@ -74,7 +79,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [displayedChapter, setDisplayedChapter] = useState(chapter);
   const [startChapter, setStartChapter] = useState<number>(1);
   const [endChapter, setEndChapter] = useState<number>(1);
-  const [showBatchRetranslate, setShowBatchRetranslate] = useState<boolean>(false);
+  const [showBatchRetranslate, setShowBatchRetranslate] =
+    useState<boolean>(false);
 
   useEffect(() => {
     // Reset states when chapter changes or when moving to a new chapter
@@ -110,86 +116,28 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sourceContent.trim() && !isScrapingChapter && !isTranslating) {
-      let finalResult: TranslationResponse | undefined;
-      let currentAttempt = 0;
-      const maxAttempts = 5;
-
       try {
-        if (useAutoRetry) {
-          setIsAutoRetrying(true);
-          let bestResult: TranslationResponse | undefined;
+        // For retranslation, pass previous translation data if enabled
+        const previousTranslationData =
+          isRetranslating &&
+          displayedChapter?.qualityCheck &&
+          useExistingTranslation
+            ? {
+                previousTranslation: displayedChapter.translatedContent,
+                qualityFeedback: displayedChapter.qualityCheck.feedback,
+                useImprovementFeedback,
+              }
+            : undefined;
 
-          while (currentAttempt < maxAttempts) {
-            setAutoRetryAttempt(currentAttempt + 1);
+        const result = await onTranslate(
+          sourceContent,
+          useAutoRetry,
+          previousTranslationData,
+        );
 
-            // For first attempt, respect useExistingTranslation setting
-            const previousTranslationData =
-              currentAttempt === 0
-                ? isRetranslating &&
-                  displayedChapter?.qualityCheck &&
-                  useExistingTranslation
-                  ? {
-                      previousTranslation: displayedChapter.translatedContent,
-                      qualityFeedback: displayedChapter.qualityCheck.feedback,
-                      useImprovementFeedback,
-                    }
-                  : undefined
-                : bestResult
-                  ? {
-                      previousTranslation: bestResult.translatedContent,
-                      qualityFeedback: bestResult.qualityCheck?.feedback || '',
-                      useImprovementFeedback,
-                    }
-                  : undefined;
-
-            const result = await onTranslate(
-              sourceContent,
-              previousTranslationData,
-            );
-
-            if (!result) break;
-
-            if (
-              !bestResult ||
-              (result.qualityCheck?.score || 0) >
-                (bestResult.qualityCheck?.score || 0)
-            ) {
-              bestResult = result;
-            }
-
-            if (result.qualityCheck?.isGoodQuality) {
-              finalResult = result;
-              break;
-            }
-
-            currentAttempt++;
-          }
-
-          if (!finalResult && bestResult) {
-            finalResult = bestResult;
-          }
-        } else {
-          // Regular single translation attempt
-          const previousTranslationData =
-            isRetranslating &&
-            displayedChapter?.qualityCheck &&
-            useExistingTranslation
-              ? {
-                  previousTranslation: displayedChapter.translatedContent,
-                  qualityFeedback: displayedChapter.qualityCheck.feedback,
-                  useImprovementFeedback,
-                }
-              : undefined;
-
-          finalResult = await onTranslate(
-            sourceContent,
-            previousTranslationData,
-          );
-        }
-
-        if (finalResult) {
-          setLastTokenUsage(finalResult.tokenUsage);
-          setLastQualityCheck(finalResult.qualityCheck);
+        if (result) {
+          setLastTokenUsage(result.tokenUsage);
+          setLastQualityCheck(result.qualityCheck);
           setShowSource(false);
         }
       } finally {
@@ -522,7 +470,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowBatchRetranslate(!showBatchRetranslate)}
+                    onClick={() =>
+                      setShowBatchRetranslate(!showBatchRetranslate)
+                    }
                     className="flex items-center rounded bg-purple-600 px-3 py-1 text-sm text-white hover:bg-purple-700"
                   >
                     <FiRefreshCw className="mr-2" />
@@ -552,7 +502,17 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   <input
                     type="number"
                     value={startChapter}
-                    onChange={(e) => setStartChapter(Math.max(1, Math.min(totalChapters, parseInt(e.target.value) || 1)))}
+                    onChange={(e) =>
+                      setStartChapter(
+                        Math.max(
+                          1,
+                          Math.min(
+                            totalChapters,
+                            parseInt(e.target.value) || 1,
+                          ),
+                        ),
+                      )
+                    }
                     className="w-16 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
                     min="1"
                     max={totalChapters}
@@ -563,7 +523,17 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   <input
                     type="number"
                     value={endChapter}
-                    onChange={(e) => setEndChapter(Math.max(startChapter, Math.min(totalChapters, parseInt(e.target.value) || 1)))}
+                    onChange={(e) =>
+                      setEndChapter(
+                        Math.max(
+                          startChapter,
+                          Math.min(
+                            totalChapters,
+                            parseInt(e.target.value) || 1,
+                          ),
+                        ),
+                      )
+                    }
                     className="w-16 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
                     min={startChapter}
                     max={totalChapters}
@@ -577,7 +547,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                     onChange={(e) => setUseAutoRetry(e.target.checked)}
                     className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
                   />
-                  <label htmlFor="bulkUseAutoRetry" className="text-sm">Auto-retry for quality</label>
+                  <label htmlFor="bulkUseAutoRetry" className="text-sm">
+                    Auto-retry for quality
+                  </label>
                 </div>
                 <button
                   type="button"

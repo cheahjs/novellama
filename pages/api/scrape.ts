@@ -32,13 +32,15 @@ export default async function handler(
       const title = document
         .querySelector('.p-novel__title')
         ?.textContent?.trim();
-      
+
       // Extract preface, main content, and afterword
       const preface = document
         .querySelector('.p-novel__text--preface')
         ?.textContent?.trim();
       const mainContent = document
-        .querySelector('.js-novel-text:not(.p-novel__text--preface):not(.p-novel__text--afterword)')
+        .querySelector(
+          '.js-novel-text:not(.p-novel__text--preface):not(.p-novel__text--afterword)',
+        )
         ?.textContent?.trim();
       const afterword = document
         .querySelector('.p-novel__text--afterword')
@@ -55,7 +57,7 @@ export default async function handler(
       if (preface) {
         formattedContent += `${preface}\n\n---\n\n`;
       }
-      
+
       formattedContent += mainContent;
 
       if (afterword) {

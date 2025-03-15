@@ -200,6 +200,7 @@ export default function TranslatePage() {
 
   const handleTranslate = async (
     sourceContent: string,
+    useAutoRetry: boolean,
     previousTranslationData?: {
       previousTranslation?: string;
       qualityFeedback?: string;
@@ -211,13 +212,67 @@ export default function TranslatePage() {
     setIsTranslating(true);
 
     try {
-      const result = await translateContent({
-        sourceContent,
-        novelId: novel.id,
-        currentChapterId: currentChapter?.id,
-        ...previousTranslationData, // Spread the optional previous translation data
-      });
-      const translatedLines = result.translatedContent.split('\n');
+      let finalResult;
+      let bestResult;
+      let currentAttempt = 0;
+      const maxAttempts = 5;
+
+      // If we're using auto-retry, try multiple times to get the best quality
+      if (useAutoRetry) {
+        while (currentAttempt < maxAttempts) {
+          const result = await translateContent({
+            sourceContent,
+            novelId: novel.id,
+            currentChapterId: currentChapter?.id,
+            ...(currentAttempt === 0
+              ? previousTranslationData
+              : bestResult
+                ? {
+                    previousTranslation: bestResult.translatedContent,
+                    qualityFeedback: bestResult.qualityCheck?.feedback || '',
+                    useImprovementFeedback:
+                      previousTranslationData?.useImprovementFeedback,
+                  }
+                : {}),
+          });
+
+          if (
+            !bestResult ||
+            (result.qualityCheck?.score || 0) >
+              (bestResult.qualityCheck?.score || 0)
+          ) {
+            bestResult = result;
+          }
+
+          if (result.qualityCheck?.isGoodQuality) {
+            finalResult = result;
+            break;
+          }
+
+          currentAttempt++;
+        }
+
+        // Use the best result if no good quality was achieved
+        finalResult =
+          finalResult ||
+          bestResult ||
+          (await translateContent({
+            sourceContent,
+            novelId: novel.id,
+            currentChapterId: currentChapter?.id,
+            ...previousTranslationData,
+          }));
+      } else {
+        // Single translation attempt
+        finalResult = await translateContent({
+          sourceContent,
+          novelId: novel.id,
+          currentChapterId: currentChapter?.id,
+          ...previousTranslationData,
+        });
+      }
+
+      const translatedLines = finalResult.translatedContent.split('\n');
       const title = translatedLines[0].startsWith('# ')
         ? translatedLines[0].substring(2)
         : `Chapter ${currentChapter?.number ?? currentChapterNumber}`;
@@ -229,9 +284,9 @@ export default function TranslatePage() {
           ...currentChapter,
           title,
           sourceContent,
-          translatedContent: result.translatedContent,
+          translatedContent: finalResult.translatedContent,
           updatedAt: Date.now(),
-          qualityCheck: result.qualityCheck,
+          qualityCheck: finalResult.qualityCheck,
         };
 
         // Save the updated chapter
@@ -266,11 +321,11 @@ export default function TranslatePage() {
           id: `chapter_${Date.now()}`,
           title,
           sourceContent,
-          translatedContent: result.translatedContent,
+          translatedContent: finalResult.translatedContent,
           number: chapterNumber,
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          qualityCheck: result.qualityCheck,
+          qualityCheck: finalResult.qualityCheck,
         };
 
         // Save the new chapter
@@ -294,7 +349,7 @@ export default function TranslatePage() {
 
       toast.success('Translation complete');
       setIsTranslating(false);
-      return result;
+      return finalResult;
     } catch (error: unknown) {
       console.error('Translation error:', error);
       toast.error('Failed to translate content');
@@ -511,7 +566,9 @@ export default function TranslatePage() {
           return;
         }
 
-        const progress = Math.round(((i - startChapter + 1) / (endChapter - startChapter + 1)) * 100);
+        const progress = Math.round(
+          ((i - startChapter + 1) / (endChapter - startChapter + 1)) * 100,
+        );
 
         // Update toast with current progress
         toast.loading(
@@ -635,7 +692,9 @@ export default function TranslatePage() {
         // Update loaded chapters
         setLoadedChapters((prevChapters) => {
           const newChapters = [...prevChapters];
-          const index = newChapters.findIndex((ch) => ch.id === updatedChapter.id);
+          const index = newChapters.findIndex(
+            (ch) => ch.id === updatedChapter.id,
+          );
           if (index >= 0) {
             newChapters[index] = updatedChapter;
           } else {
