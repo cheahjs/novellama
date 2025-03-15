@@ -4,7 +4,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { FiArrowLeft, FiSettings } from 'react-icons/fi';
 import { Novel, TranslationChapter, NovelWithChapters } from '@/types';
-import { getNovel, saveNovel, addChapterToNovel } from '@/services/storage';
+import { getNovel, saveNovel, addChapterToNovel, deleteChapter, updateChapter } from '@/services/storage';
 import { translateContent } from '@/services/api';
 import TranslationEditor from '@/components/TranslationEditor';
 import ChapterNavigation from '@/components/ChapterNavigation';
@@ -135,7 +135,7 @@ export default function TranslatePage() {
         };
 
         // Save the updated chapter
-        await addChapterToNovel(novel.id, updatedChapter);
+        await updateChapter(novel.id, updatedChapter);
 
         // Reload the novel to get the updated chapters
         const updatedNovel = await getNovel(novel.id);
@@ -390,18 +390,17 @@ export default function TranslatePage() {
     }
 
     try {
-      const updatedChapters = novel.chapters.slice(0, -1);
-      const updatedNovel = {
-        ...novel,
-        chapters: updatedChapters,
-        updatedAt: Date.now(),
-      };
+      const latestChapter = novel.chapters[novel.chapters.length - 1];
+      await deleteChapter(novel.id, latestChapter.number);
 
-      await saveNovel(updatedNovel);
-      setNovel(updatedNovel);
+      // Reload the novel to get updated state
+      const updatedNovel = await getNovel(novel.id);
+      if (updatedNovel) {
+        setNovel(updatedNovel);
+      }
 
       // Navigate to the new latest chapter
-      const newIndex = Math.max(0, updatedChapters.length - 1);
+      const newIndex = Math.max(0, (updatedNovel?.chapters?.length || 0) - 1);
       handleNavigate(newIndex);
 
       toast.success('Chapter deleted successfully');
