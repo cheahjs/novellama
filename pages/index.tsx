@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { FiPlus } from 'react-icons/fi';
-import NovelList from '@/components/NovelList';
+import NovelList from '@/components/novel/NovelList';
 import { Novel } from '@/types';
 import { getNovels, deleteNovel } from '@/services/storage';
 import { toast, Toaster } from 'react-hot-toast';

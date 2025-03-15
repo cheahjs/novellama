@@ -10,11 +10,11 @@ import {
   FiCloudLightning,
 } from 'react-icons/fi';
 import { TranslationChapter, TranslationResponse } from '@/types';
-import LiveTokenCounter from './LiveTokenCounter';
+import LiveTokenCounter from '@/components/info/LiveTokenCounter';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import TokenUsage from './TokenUsage';
-import QualityIndicator from './QualityIndicator';
+import TokenUsage from '@/components/info/TokenUsage';
+import QualityIndicator from '@/components/info/QualityIndicator';
 import { toast } from 'react-hot-toast';
 
 interface TranslationEditorProps {

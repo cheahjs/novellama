@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTokenizer } from '../hooks/useTokenizer';
+import { useTokenizer } from '@/hooks/useTokenizer';
 
 interface LiveTokenCounterProps {
   text: string;

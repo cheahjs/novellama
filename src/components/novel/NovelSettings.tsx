@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Novel, Reference } from '@/types';
 import { FiSave, FiX } from 'react-icons/fi';
-import ReferenceInput from './ReferenceInput';
-import ReferenceItem from './ReferenceItem';
-import LiveTokenCounter from './LiveTokenCounter';
+import ReferenceInput from '@/components/novel/ReferenceInput';
+import ReferenceItem from '@/components/novel/ReferenceItem';
+import LiveTokenCounter from '@/components/info/LiveTokenCounter';
 
 interface NovelSettingsProps {
   novel: Novel;
@@ -37,7 +37,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAddReference = (reference: Omit<Reference, 'id'>) => {
+  const handleAddReference = (reference: Omit<Reference, 'id' | 'createdAt' | 'updatedAt' | 'tokenCount'>) => {
     const newReference: Reference = {
       ...reference,
       id: crypto.randomUUID(),

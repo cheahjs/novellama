@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Reference } from '@/types';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import LiveTokenCounter from './LiveTokenCounter';
+import LiveTokenCounter from '@/components/info/LiveTokenCounter';
 
 interface ReferenceInputProps {
   onAdd: (reference: Omit<Reference, 'id'>) => void;

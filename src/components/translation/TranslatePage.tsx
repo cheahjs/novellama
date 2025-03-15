@@ -13,9 +13,9 @@ import {
   getChapterTOC,
 } from '@/services/storage';
 import { translateContent } from '@/services/api';
-import TranslationEditor from '@/components/TranslationEditor';
-import ChapterNavigation from '@/components/ChapterNavigation';
-import NovelSettings from '@/components/NovelSettings';
+import TranslationEditor from '@/components/translation/TranslationEditor';
+import ChapterNavigation from '@/components/translation/ChapterNavigation';
+import NovelSettings from '@/components/novel/NovelSettings';
 import { toast, Toaster } from 'react-hot-toast';
 
 export default function TranslatePage() {

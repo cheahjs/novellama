@@ -1,1 +1,1 @@
-export { default } from '@/components/TranslatePage';
+export { default } from '@/components/translation/TranslatePage';
