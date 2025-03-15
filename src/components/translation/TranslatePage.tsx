@@ -486,6 +486,195 @@ export default function TranslatePage() {
     }
   };
 
+  const handleBatchRetranslate = async (
+    startChapter: number,
+    endChapter: number,
+    useAutoRetry: boolean,
+  ) => {
+    if (!novel) return;
+
+    setIsBatchTranslating(true);
+    setShouldCancelBatch(false);
+
+    // Create a persistent toast that we'll update throughout the process
+    const toastId = toast.loading(
+      `Starting bulk retranslation from chapter ${startChapter} to ${endChapter}...`,
+      { duration: Infinity },
+    );
+
+    try {
+      for (let i = startChapter; i <= endChapter; i++) {
+        // Check if we should cancel
+        if (shouldCancelBatch) {
+          toast.dismiss(toastId);
+          toast.success('Bulk retranslation cancelled');
+          return;
+        }
+
+        const progress = Math.round(((i - startChapter + 1) / (endChapter - startChapter + 1)) * 100);
+
+        // Update toast with current progress
+        toast.loading(
+          `Retranslating chapter ${i} (${i - startChapter + 1}/${endChapter - startChapter + 1}) - ${progress}% complete`,
+          { id: toastId },
+        );
+
+        // Scrape the chapter
+        const response = await fetch('/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: novel.sourceUrl,
+            chapterNumber: i,
+            type: 'syosetu',
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to scrape chapter ${i}`);
+        }
+
+        const data = await response.json();
+        if (!data.title || !data.content) {
+          throw new Error(`No content found for chapter ${i}`);
+        }
+
+        // Get the existing chapter if it exists
+        const existingChapter = loadedChapters.find((ch) => ch.number === i);
+        if (!existingChapter) {
+          throw new Error(`Chapter ${i} not found`);
+        }
+
+        // Translate the chapter
+        const sourceContent = `# ${data.title}\n\n${data.content}`;
+
+        let finalResult;
+        if (useAutoRetry) {
+          let currentAttempt = 0;
+          const maxAttempts = 5;
+          let bestResult;
+
+          while (currentAttempt < maxAttempts && !shouldCancelBatch) {
+            // Update toast with retry information
+            toast.loading(
+              `Retranslating chapter ${i} - Attempt ${currentAttempt + 1}/5`,
+              { id: toastId },
+            );
+
+            const result = await translateContent({
+              sourceContent,
+              novelId: novel.id,
+              currentChapterId: existingChapter?.id,
+              ...(bestResult
+                ? {
+                    previousTranslation: bestResult.translatedContent,
+                    qualityFeedback: bestResult.qualityCheck?.feedback || '',
+                    useImprovementFeedback: true,
+                  }
+                : {}),
+            });
+
+            if (
+              !bestResult ||
+              (result.qualityCheck?.score || 0) >
+                (bestResult.qualityCheck?.score || 0)
+            ) {
+              bestResult = result;
+            }
+
+            if (result.qualityCheck?.isGoodQuality) {
+              finalResult = result;
+              break;
+            }
+
+            currentAttempt++;
+          }
+
+          finalResult =
+            bestResult ||
+            (await translateContent({
+              sourceContent,
+              novelId: novel.id,
+              currentChapterId: existingChapter?.id,
+            }));
+        } else {
+          // Single translation attempt
+          finalResult = await translateContent({
+            sourceContent,
+            novelId: novel.id,
+            currentChapterId: existingChapter?.id,
+          });
+        }
+
+        // Check for cancellation after translation
+        if (shouldCancelBatch) {
+          toast.dismiss(toastId);
+          toast.success('Bulk retranslation cancelled');
+          return;
+        }
+
+        const translatedLines = finalResult.translatedContent.split('\n');
+        const title = translatedLines[0].startsWith('# ')
+          ? translatedLines[0].substring(2)
+          : `Chapter ${i}`;
+
+        // Create or update the chapter
+        const updatedChapter: TranslationChapter = {
+          id: existingChapter.id,
+          title,
+          sourceContent,
+          translatedContent: finalResult.translatedContent,
+          number: i,
+          createdAt: existingChapter.createdAt,
+          updatedAt: Date.now(),
+          qualityCheck: finalResult.qualityCheck,
+        };
+
+        await updateChapter(novel.id, updatedChapter);
+
+        // Update loaded chapters
+        setLoadedChapters((prevChapters) => {
+          const newChapters = [...prevChapters];
+          const index = newChapters.findIndex((ch) => ch.id === updatedChapter.id);
+          if (index >= 0) {
+            newChapters[index] = updatedChapter;
+          } else {
+            newChapters.push(updatedChapter);
+          }
+          return newChapters.sort((a, b) => a.number - b.number);
+        });
+
+        // Update the chapter metadata
+        setChapterMetadata((prevMetadata) => {
+          const newMetadata = [...prevMetadata];
+          const index = newMetadata.findIndex((ch) => ch.number === i);
+          if (index >= 0) {
+            newMetadata[index] = { number: i, title: updatedChapter.title };
+          }
+          return newMetadata;
+        });
+      }
+
+      // Update toast to show completion
+      toast.dismiss(toastId);
+      toast.success('Bulk retranslation completed successfully');
+
+      // Reload the novel to get updated chapters
+      const updatedNovel = await getNovel(novel.id);
+      if (updatedNovel) {
+        setNovel(updatedNovel);
+      }
+    } catch (error: unknown) {
+      console.error('Bulk retranslation error:', error);
+      // Update toast to show error
+      toast.dismiss(toastId);
+      toast.error('Failed to complete bulk retranslation');
+    } finally {
+      setIsBatchTranslating(false);
+      setShouldCancelBatch(false);
+    }
+  };
+
   const handleCancelBatchTranslate = () => {
     setShouldCancelBatch(true);
   };
@@ -639,9 +828,11 @@ export default function TranslatePage() {
           isTranslating={isTranslating}
           isBatchTranslating={isBatchTranslating}
           onBatchTranslate={handleBatchTranslate}
+          onBatchRetranslate={handleBatchRetranslate}
           onCancelBatchTranslate={handleCancelBatchTranslate}
           novelSourceUrl={novel.sourceUrl}
           nextChapterNumber={chapterMetadata.length + 1}
+          totalChapters={chapterMetadata.length}
         />
       </div>
 

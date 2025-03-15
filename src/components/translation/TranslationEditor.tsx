@@ -30,10 +30,12 @@ interface TranslationEditorProps {
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
   isTranslating: boolean;
   onBatchTranslate?: (count: number, useAutoRetry: boolean) => Promise<void>;
+  onBatchRetranslate?: (startChapter: number, endChapter: number, useAutoRetry: boolean) => Promise<void>;
   isBatchTranslating?: boolean;
   onCancelBatchTranslate?: () => void;
   novelSourceUrl?: string;
   nextChapterNumber?: number;
+  totalChapters?: number;
 }
 
 const TranslationEditor: React.FC<TranslationEditorProps> = ({
@@ -42,10 +44,12 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   onSaveEdit,
   isTranslating,
   onBatchTranslate,
+  onBatchRetranslate,
   isBatchTranslating,
   onCancelBatchTranslate,
   novelSourceUrl,
   nextChapterNumber,
+  totalChapters,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [sourceContent, setSourceContent] = useState<string>('');
@@ -68,6 +72,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [useExistingTranslation, setUseExistingTranslation] =
     useState<boolean>(true);
   const [displayedChapter, setDisplayedChapter] = useState(chapter);
+  const [startChapter, setStartChapter] = useState<number>(1);
+  const [endChapter, setEndChapter] = useState<number>(1);
+  const [showBatchRetranslate, setShowBatchRetranslate] = useState<boolean>(false);
 
   useEffect(() => {
     // Reset states when chapter changes or when moving to a new chapter
@@ -478,47 +485,124 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               )}
             </div>
 
-            {onBatchTranslate && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={batchCount}
-                  onChange={(e) =>
-                    setBatchCount(Math.max(1, parseInt(e.target.value)))
-                  }
-                  className="w-16 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
-                  min="1"
-                />
+            <div className="flex items-center gap-4">
+              {onBatchTranslate && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={batchCount}
+                    onChange={(e) =>
+                      setBatchCount(Math.max(1, parseInt(e.target.value)))
+                    }
+                    className="w-16 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
+                    min="1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onBatchTranslate(batchCount, useAutoRetry)}
+                    disabled={isBatchTranslating}
+                    className="flex items-center rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isBatchTranslating ? (
+                      <>
+                        <FiRefreshCw className="mr-2 animate-spin" />
+                        Translating...
+                      </>
+                    ) : (
+                      <>
+                        <FiPlayCircle className="mr-2" />
+                        Batch Translate
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {onBatchRetranslate && totalChapters && totalChapters > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowBatchRetranslate(!showBatchRetranslate)}
+                    className="flex items-center rounded bg-purple-600 px-3 py-1 text-sm text-white hover:bg-purple-700"
+                  >
+                    <FiRefreshCw className="mr-2" />
+                    Bulk Retranslate
+                  </button>
+                </div>
+              )}
+
+              {isBatchTranslating && onCancelBatchTranslate && (
                 <button
                   type="button"
-                  onClick={() => onBatchTranslate(batchCount, useAutoRetry)}
+                  onClick={onCancelBatchTranslate}
+                  className="text-sm text-red-400 hover:text-red-500"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+
+          {showBatchRetranslate && onBatchRetranslate && totalChapters && (
+            <div className="mt-4 rounded-lg border border-gray-700 p-4">
+              <h3 className="mb-3 text-lg font-medium">Bulk Retranslation</h3>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm">Start Chapter:</label>
+                  <input
+                    type="number"
+                    value={startChapter}
+                    onChange={(e) => setStartChapter(Math.max(1, Math.min(totalChapters, parseInt(e.target.value) || 1)))}
+                    className="w-16 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
+                    min="1"
+                    max={totalChapters}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm">End Chapter:</label>
+                  <input
+                    type="number"
+                    value={endChapter}
+                    onChange={(e) => setEndChapter(Math.max(startChapter, Math.min(totalChapters, parseInt(e.target.value) || 1)))}
+                    className="w-16 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
+                    min={startChapter}
+                    max={totalChapters}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="bulkUseAutoRetry"
+                    checked={useAutoRetry}
+                    onChange={(e) => setUseAutoRetry(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="bulkUseAutoRetry" className="text-sm">Auto-retry for quality</label>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onBatchRetranslate(startChapter, endChapter, useAutoRetry);
+                    setShowBatchRetranslate(false);
+                  }}
                   disabled={isBatchTranslating}
-                  className="flex items-center rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isBatchTranslating ? (
                     <>
                       <FiRefreshCw className="mr-2 animate-spin" />
-                      Translating...
+                      Retranslating...
                     </>
                   ) : (
                     <>
-                      <FiPlayCircle className="mr-2" />
-                      Batch Translate
+                      <FiRefreshCw className="mr-2" />
+                      Start Retranslation
                     </>
                   )}
                 </button>
-                {isBatchTranslating && onCancelBatchTranslate && (
-                  <button
-                    type="button"
-                    onClick={onCancelBatchTranslate}
-                    className="text-sm text-red-400 hover:text-red-500"
-                  >
-                    Cancel
-                  </button>
-                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {lastTokenUsage && <TokenUsage tokenUsage={lastTokenUsage} />}
 
