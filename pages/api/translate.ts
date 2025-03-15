@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 import { NovelWithChapters, Reference } from '@/types';
 import { truncateContext } from '@/utils/tokenizer';
-import { getNovel } from '@/services/storage';
+import { getNovelById } from '@/utils/fileStorage';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -120,11 +120,11 @@ async function constructMessages(
           ? Math.abs(index - currentChapterIndex)
           : index, // If no current chapter, use index as distance
       }))
-      // Sort by distance from current chapter, with a small random factor for variety
+      // Sort by distance from current chapter, with closest chapters at the end
       .sort((a, b) => {
         const distanceWeight = 10; // Higher value means distance has more influence
         const randomFactor = (Math.random() - 0.5) * 0.2; // Small random factor for variety
-        return (a.distanceFromCurrent - b.distanceFromCurrent) * distanceWeight + randomFactor;
+        return (b.distanceFromCurrent - a.distanceFromCurrent) * distanceWeight + randomFactor;
       })
       .flatMap((item) => item.pair);
   }
@@ -204,13 +204,12 @@ export default async function handler(
     }
 
     // Fetch the novel first to get all the metadata
-    const novel = await getNovel(
+    const novel = await getNovelById(
       request.novelId,
       {
         start: 0,
         end: 999999, // Large number to ensure we get all chapters
-      },
-      req,
+      }
     );
     if (!novel) {
       return res.status(404).json({ message: 'Novel not found' });

@@ -92,8 +92,8 @@ Rate the translation on a scale from 0 to 10 and provide brief feedback, where a
 
 Return JSON in the format:
 {
-    "score": <number>,
-    "feedback": "<string>"
+  "feedback": "<string>",
+  "score": <number>,
 }`;
 
   const userPrompt = `Source text (${sourceLanguage}):
@@ -124,8 +124,8 @@ ${translatedContent}
             schema: {
               type: 'object',
               properties: {
-                score: { type: 'number' },
                 feedback: { type: 'string' },
+                score: { type: 'number' },
               },
               required: ['score', 'feedback'],
             },
