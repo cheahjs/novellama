@@ -23,8 +23,7 @@ export default function TranslatePage() {
   const { id, chapter } = router.query;
 
   const [novel, setNovel] = useState<Novel | null>(null);
-  const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
-  const [currentChapterNumber, setCurrentChapterNumber] = useState(0);
+  const [currentChapterNumber, setCurrentChapterNumber] = useState(1);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -108,31 +107,30 @@ export default function TranslatePage() {
           // Load chapter metadata
           const metadata = await loadChapterMetadata(novelId);
 
-          // Determine initial chapter index
-          let initialIndex = 0;
+          // Determine initial chapter number
+          let initialChapterNumber = 1;
           if (chapter !== undefined) {
-            const chapterIndex =
-              typeof chapter === 'string' ? parseInt(chapter) - 1 : 0;
+            const chapterNumber =
+              typeof chapter === 'string' ? parseInt(chapter) : 1;
             if (
-              !isNaN(chapterIndex) &&
-              chapterIndex >= 0 &&
+              !isNaN(chapterNumber) &&
+              chapterNumber >= 1 &&
               // Allow navigating to a new chapter position
-              chapterIndex <= metadata.length
+              chapterNumber <= metadata.length + 1
             ) {
-              initialIndex = chapterIndex;
+              initialChapterNumber = chapterNumber;
             }
           } else if (metadata.length > 0) {
-            initialIndex = metadata.length - 1;
+            initialChapterNumber = metadata.length;
           }
 
           // Only set these if we're not already at the target chapter
           // This prevents resetting state when just the URL changes
-          if (currentChapterIndex !== initialIndex) {
-            setCurrentChapterIndex(initialIndex);
-            setCurrentChapterNumber(initialIndex + 1);
+          if (currentChapterNumber !== initialChapterNumber) {
+            setCurrentChapterNumber(initialChapterNumber);
 
             // Load initial chapters
-            await loadChapters(novelId, initialIndex);
+            await loadChapters(novelId, initialChapterNumber - 1);
           }
         } else {
           toast.error('Novel not found');
@@ -146,7 +144,7 @@ export default function TranslatePage() {
         setIsLoadingNovel(false);
       }
     },
-    [router, chapter, loadChapterMetadata, loadChapters, currentChapterIndex],
+    [router, chapter, loadChapterMetadata, loadChapters, currentChapterNumber],
   );
 
   useEffect(() => {
@@ -481,21 +479,20 @@ export default function TranslatePage() {
     setShouldCancelBatch(true);
   };
 
-  const handleNavigate = async (index: number) => {
+  const handleNavigate = async (chapterNumber: number) => {
     if (!novel) return;
 
-    // Update the current chapter index and number
-    setCurrentChapterIndex(index);
-    setCurrentChapterNumber(index + 1);
-
     // Load chapters if needed (this will now handle new chapter case)
-    await loadChapters(novel.id, index);
+    await loadChapters(novel.id, chapterNumber - 1);
+
+    // Update the current chapter number
+    setCurrentChapterNumber(chapterNumber);
 
     // Update URL without reloading and scroll to top after navigation completes
     router.push(
       {
         pathname: router.pathname,
-        query: { ...router.query, chapter: index + 1 },
+        query: { ...router.query, chapter: chapterNumber },
       },
       undefined,
       { shallow: true },
@@ -526,7 +523,7 @@ export default function TranslatePage() {
 
       // Navigate to the new latest chapter
       const newIndex = Math.max(0, chapterMetadata.length - 1);
-      handleNavigate(newIndex);
+      handleNavigate(newIndex + 1);
 
       toast.success('Chapter deleted successfully');
     } catch (error) {
@@ -611,12 +608,12 @@ export default function TranslatePage() {
         </div>
 
         <ChapterNavigation
-          currentIndex={currentChapterIndex}
+          currentChapter={currentChapterNumber}
           totalChapters={chapterMetadata.length}
           onNavigate={handleNavigate}
           chapters={chapterMetadata}
           onDeleteLatest={
-            currentChapterIndex === chapterMetadata.length - 1
+            currentChapterNumber === chapterMetadata.length
               ? handleDeleteLatest
               : undefined
           }

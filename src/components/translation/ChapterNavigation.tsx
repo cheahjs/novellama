@@ -9,15 +9,15 @@ import {
 } from 'react-icons/fi';
 
 interface ChapterNavigationProps {
-  currentIndex: number;
+  currentChapter: number;
   totalChapters: number;
-  onNavigate: (index: number) => void;
+  onNavigate: (chapterNumber: number) => void;
   chapters: Array<{ number: number; title: string }>;
   onDeleteLatest?: () => void;
 }
 
 const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
-  currentIndex,
+  currentChapter,
   totalChapters,
   onNavigate,
   chapters,
@@ -28,35 +28,35 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
   const isNavigatingRef = useRef(false);
 
   const safeNavigate = useCallback(
-    (targetIndex: number) => {
+    (targetChapter: number) => {
       if (isNavigatingRef.current) {
         return;
       }
 
       isNavigatingRef.current = true;
-      onNavigate(targetIndex);
+      onNavigate(targetChapter);
     },
     [onNavigate],
   );
 
   useEffect(() => {
     isNavigatingRef.current = false;
-  }, [currentIndex]);
+  }, [currentChapter]);
 
   const handlePrevious = useCallback(() => {
-    if (currentIndex > 0) {
-      safeNavigate(currentIndex - 1);
+    if (currentChapter > 1) {
+      safeNavigate(currentChapter - 1);
     }
-  }, [currentIndex, safeNavigate]);
+  }, [currentChapter, safeNavigate]);
 
   const handleNext = useCallback(() => {
     // If we're at the last chapter, create a new chapter
-    if (currentIndex >= totalChapters - 1) {
-      safeNavigate(totalChapters);
+    if (currentChapter >= totalChapters) {
+      safeNavigate(totalChapters + 1);
     } else {
-      safeNavigate(currentIndex + 1);
+      safeNavigate(currentChapter + 1);
     }
-  }, [currentIndex, totalChapters, safeNavigate]);
+  }, [currentChapter, totalChapters, safeNavigate]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -86,15 +86,15 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
     };
   }, [handlePrevious, handleNext]);
 
-  const currentChapter = chapters[currentIndex];
+  const currentChapterData = chapters.find(ch => ch.number === currentChapter);
 
   return (
     <div className="relative flex items-stretch py-4">
       <button
         onClick={handlePrevious}
-        disabled={currentIndex <= 0}
+        disabled={currentChapter <= 1}
         className={`flex items-center space-x-2 rounded-lg px-4 ${
-          currentIndex <= 0
+          currentChapter <= 1
             ? 'cursor-not-allowed text-gray-700'
             : 'text-gray-400 hover:bg-gray-700'
         }`}
@@ -111,11 +111,11 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
           >
             <FiList className="h-4 w-4 text-gray-400 group-hover:text-gray-300" />
             <div className="text-sm text-gray-500">
-              Chapter {currentIndex + 1} of {totalChapters}
+              Chapter {currentChapter} of {totalChapters}
             </div>
           </button>
 
-          {currentIndex === totalChapters - 1 &&
+          {currentChapter === totalChapters &&
             totalChapters > 0 &&
             onDeleteLatest && (
               <div className="relative">
@@ -143,24 +143,24 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
               </div>
             )}
         </div>
-        {currentChapter && (
+        {currentChapterData && (
           <div className="mt-1 text-center text-lg font-medium">
-            {currentChapter.title || `Chapter ${currentIndex + 1}`}
+            {currentChapterData.title || `Chapter ${currentChapter}`}
           </div>
         )}
 
         {showTOC && (
           <div className="absolute top-full left-1/2 z-10 mt-2 w-64 -translate-x-1/2 transform rounded-lg border border-gray-700 bg-gray-800 shadow-lg">
             <div className="max-h-96 overflow-y-auto py-2">
-              {chapters.map((chapter, index) => (
+              {chapters.map((chapter) => (
                 <button
-                  key={index}
+                  key={chapter.number}
                   onClick={() => {
-                    onNavigate(index);
+                    onNavigate(chapter.number);
                     setShowTOC(false);
                   }}
                   className={`w-full px-4 py-2 text-left hover:bg-gray-700 ${
-                    index === currentIndex ? 'bg-gray-700' : ''
+                    chapter.number === currentChapter ? 'bg-gray-700' : ''
                   }`}
                 >
                   <div className="text-sm text-gray-400">
@@ -181,9 +181,9 @@ const ChapterNavigation: React.FC<ChapterNavigationProps> = ({
         className="flex items-center space-x-2 rounded-lg px-4 text-gray-400 hover:bg-gray-700"
       >
         <span>
-          {currentIndex >= totalChapters - 1 ? 'New Chapter' : 'Next Chapter'}
+          {currentChapter >= totalChapters ? 'New Chapter' : 'Next Chapter'}
         </span>
-        {currentIndex >= totalChapters - 1 ? (
+        {currentChapter >= totalChapters ? (
           <FiPlus className="h-5 w-5" />
         ) : (
           <FiChevronRight className="h-5 w-5" />
