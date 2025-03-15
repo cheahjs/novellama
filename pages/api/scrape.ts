@@ -32,19 +32,39 @@ export default async function handler(
       const title = document
         .querySelector('.p-novel__title')
         ?.textContent?.trim();
-      const content = document
-        .querySelector('.p-novel__body')
+      
+      // Extract preface, main content, and afterword
+      const preface = document
+        .querySelector('.p-novel__text--preface')
+        ?.textContent?.trim();
+      const mainContent = document
+        .querySelector('.js-novel-text:not(.p-novel__text--preface):not(.p-novel__text--afterword)')
+        ?.textContent?.trim();
+      const afterword = document
+        .querySelector('.p-novel__text--afterword')
         ?.textContent?.trim();
 
-      if (!title || !content) {
+      if (!title || !mainContent) {
         return res.status(400).json({
           error: 'Could not extract content from the syosetu webpage',
         });
       }
 
+      // Format content with Markdown
+      let formattedContent = '';
+      if (preface) {
+        formattedContent += `${preface}\n\n---\n\n`;
+      }
+      
+      formattedContent += mainContent;
+
+      if (afterword) {
+        formattedContent += `\n\n---\n\n${afterword}`;
+      }
+
       return res.status(200).json({
         title,
-        content,
+        content: formattedContent,
       });
     } else {
       // Use Readability for general webpage scraping
