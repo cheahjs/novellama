@@ -96,6 +96,11 @@ async function constructMessages(
         !request.currentChapterId || chapter.id !== request.currentChapterId,
     );
 
+    // Get the index of the current chapter
+    const currentChapterIndex = request.currentChapterId 
+      ? novel.chapters.findIndex(chapter => chapter.id === request.currentChapterId)
+      : novel.chapters.length;
+
     // Format previous chunks as context
     context = previousChapters
       .map((chapter, index) => ({
@@ -110,13 +115,16 @@ async function constructMessages(
           },
         ],
         originalIndex: index,
+        // Calculate distance from current chapter, if there is one
+        distanceFromCurrent: currentChapterIndex !== -1 
+          ? Math.abs(index - currentChapterIndex)
+          : index, // If no current chapter, use index as distance
       }))
-      // Randomize the order of the chapters, but weight it such that it's still most likely to be in the same order as the source content
+      // Sort by distance from current chapter, with a small random factor for variety
       .sort((a, b) => {
-        // Higher bias value = stronger tendency to preserve original order
-        const bias = 8;
-        // Compare original positions, but add a smaller random component
-        return a.originalIndex - b.originalIndex + (Math.random() - 0.5) / bias;
+        const distanceWeight = 10; // Higher value means distance has more influence
+        const randomFactor = (Math.random() - 0.5) * 0.2; // Small random factor for variety
+        return (a.distanceFromCurrent - b.distanceFromCurrent) * distanceWeight + randomFactor;
       })
       .flatMap((item) => item.pair);
   }
