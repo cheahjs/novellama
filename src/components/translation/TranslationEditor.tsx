@@ -67,36 +67,32 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [autoRetryAttempt, setAutoRetryAttempt] = useState<number>(0);
   const [useExistingTranslation, setUseExistingTranslation] =
     useState<boolean>(true);
-  const [currentChapterNumber, setCurrentChapterNumber] = useState<number>(
-    chapter?.number ?? nextChapterNumber ?? 1
-  );
+  const [displayedChapter, setDisplayedChapter] = useState(chapter);
 
   useEffect(() => {
     if (chapter) {
-      if (isRetranslating) {
-        setSourceContent(chapter.sourceContent);
-      } else {
+      // Only update displayed chapter if it's different
+      if (chapter.number !== displayedChapter?.number) {
+        // Reset states when chapter changes
+        setIsRetranslating(false);
+        setIsAutoRetrying(false);
+        setAutoRetryAttempt(0);
+        setShowSource(false);
+        setIsEditing(false);
         setSourceContent('');
-      }
-      setEditTitle(chapter.title);
-      setEditContent(chapter.translatedContent);
 
-      // Set the quality check from the current chapter if available
-      if (chapter.qualityCheck) {
-        setLastQualityCheck(chapter.qualityCheck);
-      } else {
-        setLastQualityCheck(undefined);
+        // Update content states
+        setEditTitle(chapter.title);
+        setEditContent(chapter.translatedContent);
+        
+        // Update displayed chapter
+        setDisplayedChapter(chapter);
+        
+        // Set the quality check from the current chapter if available
+        setLastQualityCheck(chapter.qualityCheck ?? undefined);
       }
     }
-  }, [chapter, isRetranslating]);
-
-  useEffect(() => {
-    if (chapter?.number) {
-      setCurrentChapterNumber(chapter.number);
-    } else if (nextChapterNumber) {
-      setCurrentChapterNumber(nextChapterNumber);
-    }
-  }, [chapter?.number, nextChapterNumber]);
+  }, [chapter, displayedChapter?.number]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,7 +206,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: novelSourceUrl,
-          chapterNumber: chapter?.number ?? currentChapterNumber,
+          chapterNumber: chapter?.number ?? nextChapterNumber,
           type: 'syosetu',
         }),
       });

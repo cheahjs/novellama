@@ -482,13 +482,10 @@ export default function TranslatePage() {
   const handleNavigate = async (chapterNumber: number) => {
     if (!novel) return;
 
-    // Load chapters if needed (this will now handle new chapter case)
-    await loadChapters(novel.id, chapterNumber - 1);
+    // Keep the current chapter visible while loading the new one
+    const previousChapter = currentChapter;
 
-    // Update the current chapter number
-    setCurrentChapterNumber(chapterNumber);
-
-    // Update URL without reloading and scroll to top after navigation completes
+    // Update URL without reloading
     router.push(
       {
         pathname: router.pathname,
@@ -497,6 +494,14 @@ export default function TranslatePage() {
       undefined,
       { shallow: true },
     );
+
+    // Load chapters after URL update
+    await loadChapters(novel.id, chapterNumber - 1);
+
+    // Only update current chapter number after new chapter is loaded
+    setCurrentChapterNumber(chapterNumber);
+
+    // Scroll to top after navigation completes
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
