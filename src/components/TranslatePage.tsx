@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { FiArrowLeft, FiSettings } from 'react-icons/fi';
-import { Novel, TranslationChapter, NovelWithChapters } from '@/types';
+import { Novel, TranslationChapter } from '@/types';
 import {
   getNovel,
   saveNovel,
@@ -54,6 +54,14 @@ export default function TranslatePage() {
   const loadChapters = useCallback(
     async (novelId: string, targetIndex: number) => {
       try {
+        // If we're creating a new chapter (index beyond current chapters), don't load anything
+        if (targetIndex >= chapterMetadata.length) {
+          setLoadedChapters(prevChapters => 
+            prevChapters.filter(ch => ch.number <= chapterMetadata.length)
+          );
+          return;
+        }
+
         // Load the target chapter and its neighbors
         const start = Math.max(targetIndex - 1, 0);
         const end = targetIndex + 1;
@@ -84,7 +92,7 @@ export default function TranslatePage() {
         toast.error('Failed to load chapters');
       }
     },
-    [],
+    [chapterMetadata.length],
   );
 
   const loadNovel = useCallback(
@@ -108,7 +116,8 @@ export default function TranslatePage() {
             if (
               !isNaN(chapterIndex) &&
               chapterIndex >= 0 &&
-              chapterIndex < metadata.length
+              // Allow navigating to a new chapter position
+              chapterIndex <= metadata.length
             ) {
               initialIndex = chapterIndex;
             }
@@ -116,11 +125,15 @@ export default function TranslatePage() {
             initialIndex = metadata.length - 1;
           }
 
-          setCurrentChapterIndex(initialIndex);
-          setCurrentChapterNumber(initialIndex + 1);
+          // Only set these if we're not already at the target chapter
+          // This prevents resetting state when just the URL changes
+          if (currentChapterIndex !== initialIndex) {
+            setCurrentChapterIndex(initialIndex);
+            setCurrentChapterNumber(initialIndex + 1);
 
-          // Load initial chapters
-          await loadChapters(novelId, initialIndex);
+            // Load initial chapters
+            await loadChapters(novelId, initialIndex);
+          }
         } else {
           toast.error('Novel not found');
           router.push('/');
@@ -133,7 +146,7 @@ export default function TranslatePage() {
         setIsLoadingNovel(false);
       }
     },
-    [router, chapter, loadChapterMetadata, loadChapters],
+    [router, chapter, loadChapterMetadata, loadChapters, currentChapterIndex],
   );
 
   useEffect(() => {
@@ -206,7 +219,7 @@ export default function TranslatePage() {
       const translatedLines = result.translatedContent.split('\n');
       const title = translatedLines[0].startsWith('# ')
         ? translatedLines[0].substring(2)
-        : `Chapter ${currentChapter?.number ?? (novel.chapters?.length ? novel.chapters.length + 1 : 1)}`;
+        : `Chapter ${currentChapter?.number ?? currentChapterNumber}`;
 
       // Check if we're retranslating an existing chapter
       if (currentChapter) {
@@ -244,9 +257,7 @@ export default function TranslatePage() {
         }
       } else {
         // Create a new chapter
-        const chapterNumber =
-          currentChapter?.number ??
-          (novel.chapters?.length ? novel.chapters.length + 1 : 1);
+        const chapterNumber = currentChapterNumber;
 
         const newChapter: TranslationChapter = {
           id: `chapter_${Date.now()}`,
@@ -261,6 +272,12 @@ export default function TranslatePage() {
 
         // Save the new chapter
         await addChapterToNovel(novel.id, newChapter);
+
+        // Update the chapter metadata to include the new chapter
+        setChapterMetadata(prevMetadata => [...prevMetadata, { number: newChapter.number, title: newChapter.title }]);
+
+        // Update loaded chapters to include the new one
+        setLoadedChapters(prevChapters => [...prevChapters, newChapter]);
 
         // Reload the novel to get the updated chapters
         const updatedNovel = await getNovel(novel.id);
@@ -288,10 +305,8 @@ export default function TranslatePage() {
     setShouldCancelBatch(false);
 
     // Find the highest chapter number that exists
-    const highestChapterNumber = (
-      novel.chapters as TranslationChapter[]
-    ).reduce(
-      (max: number, chapter: TranslationChapter) =>
+    const highestChapterNumber = chapterMetadata.reduce(
+      (max: number, chapter: { number: number }) =>
         Math.max(max, chapter.number),
       0,
     );
@@ -435,6 +450,12 @@ export default function TranslatePage() {
         // Save the chapter
         await addChapterToNovel(novel.id, newChapter);
 
+        // Update the chapter metadata to include the new chapter
+        setChapterMetadata(prevMetadata => [...prevMetadata, { number: newChapter.number, title: newChapter.title }]);
+
+        // Update loaded chapters to include the new one
+        setLoadedChapters(prevChapters => [...prevChapters, newChapter]);
+
         // Reload the novel to get updated chapters
         const updatedNovel = await getNovel(novel.id);
         if (updatedNovel) {
@@ -463,30 +484,31 @@ export default function TranslatePage() {
   const handleNavigate = async (index: number) => {
     if (!novel) return;
 
+    // Update the current chapter index and number
     setCurrentChapterIndex(index);
     setCurrentChapterNumber(index + 1);
 
-    // Load chapters if needed
+    // Load chapters if needed (this will now handle new chapter case)
     await loadChapters(novel.id, index);
 
     // Update URL without reloading and scroll to top after navigation completes
-    router
-      .push(
-        {
-          pathname: router.pathname,
-          query: { ...router.query, chapter: index + 1 },
-        },
-        undefined,
-        { shallow: true },
-      )
-      .then(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
+    router.push(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, chapter: index + 1 },
+      },
+      undefined,
+      { shallow: true },
+    );
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDeleteLatest = async () => {
-    if (!novel || !novel.chapters || novel.chapters.length === 0) return;
-
+    if (!novel) return;
+    
+    // Get the latest chapter from metadata
+    if (chapterMetadata.length === 0) return;
+    
     if (
       !confirm(
         'Are you sure you want to delete the latest chapter? This action cannot be undone.',
@@ -496,17 +518,14 @@ export default function TranslatePage() {
     }
 
     try {
-      const latestChapter = novel.chapters[novel.chapters.length - 1];
+      const latestChapter = chapterMetadata[chapterMetadata.length - 1];
       await deleteChapter(novel.id, latestChapter.number);
 
-      // Reload the novel to get updated state
-      const updatedNovel = await getNovel(novel.id);
-      if (updatedNovel) {
-        setNovel(updatedNovel);
-      }
+      // Reload the chapter metadata
+      await loadChapterMetadata(novel.id);
 
       // Navigate to the new latest chapter
-      const newIndex = Math.max(0, (updatedNovel?.chapters?.length || 0) - 1);
+      const newIndex = Math.max(0, chapterMetadata.length - 1);
       handleNavigate(newIndex);
 
       toast.success('Chapter deleted successfully');
@@ -537,7 +556,9 @@ export default function TranslatePage() {
 
   // Ensure chapters is always an array of TranslationChapter
   const currentChapter =
-    loadedChapters.find((c) => c.number === currentChapterNumber) || null;
+    currentChapterNumber <= chapterMetadata.length
+      ? loadedChapters.find((c) => c.number === currentChapterNumber) || null
+      : null;
 
   // Show loading state or not found message
   if (isLoadingNovel) {
@@ -609,6 +630,8 @@ export default function TranslatePage() {
           isBatchTranslating={isBatchTranslating}
           onBatchTranslate={handleBatchTranslate}
           onCancelBatchTranslate={handleCancelBatchTranslate}
+          novelSourceUrl={novel.sourceUrl}
+          nextChapterNumber={chapterMetadata.length + 1}
         />
       </div>
 
@@ -616,7 +639,8 @@ export default function TranslatePage() {
         <NovelSettings
           novel={novel}
           onClose={() => setShowSettings(false)}
-          onUpdate={updateNovelSettings}
+          onSave={updateNovelSettings}
+          isOpen={showSettings}
         />
       )}
     </div>

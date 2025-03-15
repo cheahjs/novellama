@@ -7,6 +7,7 @@ import {
   FiEdit,
   FiSave,
   FiPlayCircle,
+  FiCloudLightning,
 } from 'react-icons/fi';
 import { TranslationChapter, TranslationResponse } from '@/types';
 import LiveTokenCounter from './LiveTokenCounter';
@@ -14,6 +15,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import TokenUsage from './TokenUsage';
 import QualityIndicator from './QualityIndicator';
+import { toast } from 'react-hot-toast';
 
 interface TranslationEditorProps {
   chapter: TranslationChapter | null;
@@ -30,6 +32,8 @@ interface TranslationEditorProps {
   onBatchTranslate?: (count: number, useAutoRetry: boolean) => Promise<void>;
   isBatchTranslating?: boolean;
   onCancelBatchTranslate?: () => void;
+  novelSourceUrl?: string;
+  nextChapterNumber?: number;
 }
 
 const TranslationEditor: React.FC<TranslationEditorProps> = ({
@@ -40,6 +44,8 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   onBatchTranslate,
   isBatchTranslating,
   onCancelBatchTranslate,
+  novelSourceUrl,
+  nextChapterNumber,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [sourceContent, setSourceContent] = useState<string>('');
@@ -61,6 +67,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [autoRetryAttempt, setAutoRetryAttempt] = useState<number>(0);
   const [useExistingTranslation, setUseExistingTranslation] =
     useState<boolean>(true);
+  const [currentChapterNumber, setCurrentChapterNumber] = useState<number>(
+    chapter?.number ?? nextChapterNumber ?? 1
+  );
 
   useEffect(() => {
     if (chapter) {
@@ -80,6 +89,14 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       }
     }
   }, [chapter, isRetranslating]);
+
+  useEffect(() => {
+    if (chapter?.number) {
+      setCurrentChapterNumber(chapter.number);
+    } else if (nextChapterNumber) {
+      setCurrentChapterNumber(nextChapterNumber);
+    }
+  }, [chapter?.number, nextChapterNumber]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,6 +197,40 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       setTimeout(() => {
         textareaRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
+    }
+  };
+
+  const handleScrapeChapter = async () => {
+    if (!novelSourceUrl || isScrapingChapter) return;
+
+    setIsScrapingChapter(true);
+    try {
+      const response = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: novelSourceUrl,
+          chapterNumber: chapter?.number ?? currentChapterNumber,
+          type: 'syosetu',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to scrape chapter');
+      }
+
+      const data = await response.json();
+      if (!data.title || !data.content) {
+        throw new Error('No content found');
+      }
+
+      setSourceContent(`# ${data.title}\n\n${data.content}`);
+      toast.success('Content scraped successfully');
+    } catch (error) {
+      console.error('Failed to scrape chapter:', error);
+      toast.error('Failed to scrape chapter');
+    } finally {
+      setIsScrapingChapter(false);
     }
   };
 
@@ -302,6 +353,29 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           </div>
 
           <div className="space-y-2">
+            {novelSourceUrl && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleScrapeChapter}
+                  disabled={isScrapingChapter}
+                  className="flex items-center rounded bg-purple-600 px-4 py-2 text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isScrapingChapter ? (
+                    <>
+                      <FiRefreshCw className="mr-2 animate-spin" />
+                      Scraping...
+                    </>
+                  ) : (
+                    <>
+                      <FiCloudLightning className="mr-2" />
+                      Scrape Content
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"

@@ -11,9 +11,21 @@ export async function saveChapter(
   const now = Date.now();
 
   // Start transaction
-  const transaction = db.transaction((chapter: TranslationChapter) => {
-    // Insert or update chapter
-    db.prepare(
+  const transaction = db.transaction(() => {
+    // First check if the novel exists
+    const novel = db.prepare(
+      `SELECT id FROM novels WHERE id = ?`
+    ).get(novelId);
+
+    if (!novel) {
+      throw new Error(`Novel with ID ${novelId} not found`);
+    }
+
+    // Generate or use existing chapter ID
+    const chapterId = chapter.id || nanoid();
+
+    // First, insert or update the chapter and get the result
+    const chapterResult = db.prepare(
       `
       INSERT INTO chapters (
         id, novelId, number, title,
@@ -21,13 +33,15 @@ export async function saveChapter(
         createdAt, updatedAt
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(novelId, number) DO UPDATE SET
+        id = excluded.id,
         title = excluded.title,
         sourceContent = excluded.sourceContent,
         translatedContent = excluded.translatedContent,
         updatedAt = excluded.updatedAt
+      RETURNING id
     `,
-    ).run(
-      chapter.id || nanoid(),
+    ).get(
+      chapterId,
       novelId,
       chapter.number,
       chapter.title,
@@ -35,10 +49,16 @@ export async function saveChapter(
       chapter.translatedContent,
       chapter.createdAt || now,
       now,
-    );
+    ) as { id: string };
 
-    // If there's a quality check, save it
+    // If there's a quality check, save it using the confirmed chapter ID
     if (chapter.qualityCheck) {
+      // First delete any existing quality checks for this chapter
+      db.prepare(
+        `DELETE FROM quality_checks WHERE chapterId = ?`
+      ).run(chapterResult.id);
+
+      // Then insert the new quality check
       db.prepare(
         `
         INSERT INTO quality_checks (
@@ -47,7 +67,7 @@ export async function saveChapter(
         ) VALUES (?, ?, ?, ?, ?)
       `,
       ).run(
-        chapter.id,
+        chapterResult.id,
         chapter.qualityCheck.score,
         chapter.qualityCheck.feedback,
         chapter.qualityCheck.isGoodQuality ? 1 : 0,
@@ -74,7 +94,7 @@ export async function saveChapter(
   });
 
   // Execute transaction
-  transaction(chapter);
+  transaction();
 }
 
 // Get a single chapter
