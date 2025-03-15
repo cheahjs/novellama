@@ -18,6 +18,170 @@ import ChapterNavigation from '@/components/translation/ChapterNavigation';
 import NovelSettings from '@/components/novel/NovelSettings';
 import { toast, Toaster } from 'react-hot-toast';
 
+interface TranslationResult {
+  translatedContent: string;
+  tokenUsage: {
+    native_prompt: number;
+    native_completion: number;
+    system: number;
+    task: number;
+    translation: number;
+  };
+  qualityCheck?: {
+    score: number;
+    feedback: string;
+    isGoodQuality: boolean;
+  };
+}
+
+async function performTranslation({
+  sourceContent,
+  novelId,
+  currentChapterId,
+  useAutoRetry,
+  previousTranslationData,
+  toastId,
+}: {
+  sourceContent: string;
+  novelId: string;
+  currentChapterId?: string;
+  useAutoRetry: boolean;
+  previousTranslationData?: {
+    previousTranslation?: string;
+    qualityFeedback?: string;
+    useImprovementFeedback?: boolean;
+  };
+  toastId?: string;
+}): Promise<TranslationResult> {
+  if (!useAutoRetry) {
+    return translateContent({
+      sourceContent,
+      novelId,
+      currentChapterId,
+      ...previousTranslationData,
+    });
+  }
+
+  let bestResult: TranslationResult | null = null;
+  const maxAttempts = 5;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (toastId) {
+      toast.loading(`Translation attempt ${attempt + 1}/${maxAttempts}...`, { id: toastId });
+    }
+
+    const result = await translateContent({
+      sourceContent,
+      novelId,
+      currentChapterId,
+      ...(attempt === 0
+        ? previousTranslationData
+        : bestResult
+          ? {
+              previousTranslation: bestResult.translatedContent,
+              qualityFeedback: bestResult.qualityCheck?.feedback || '',
+              useImprovementFeedback: true,
+            }
+          : {}),
+    });
+
+    if (!bestResult || (result.qualityCheck?.score || 0) > (bestResult.qualityCheck?.score || 0)) {
+      bestResult = result;
+      if (toastId && bestResult.qualityCheck) {
+        toast.loading(
+          `New best translation found (Quality: ${Math.round(bestResult.qualityCheck.score * 100)}%)`,
+          { id: toastId }
+        );
+      }
+    }
+
+    if (result.qualityCheck?.isGoodQuality) {
+      return result;
+    }
+  }
+
+  return bestResult || await translateContent({ sourceContent, novelId, currentChapterId });
+}
+
+async function saveChapter({
+  novel,
+  chapter,
+  setLoadedChapters,
+  setChapterMetadata,
+  setNovel,
+}: {
+  novel: Novel;
+  chapter: TranslationChapter;
+  setLoadedChapters: (
+    updater: (chapters: TranslationChapter[]) => TranslationChapter[]
+  ) => void;
+  setChapterMetadata: (
+    updater: (metadata: Array<{ number: number; title: string }>) => Array<{ number: number; title: string }>
+  ) => void;
+  setNovel: (novel: Novel | null) => void;
+}) {
+  const isNewChapter = !chapter.id.startsWith('chapter_');
+  
+  if (isNewChapter) {
+    await addChapterToNovel(novel.id, chapter);
+  } else {
+    await updateChapter(novel.id, chapter);
+  }
+
+  // Update loaded chapters
+  setLoadedChapters((prevChapters) => {
+    const newChapters = [...prevChapters];
+    const index = newChapters.findIndex((ch) => ch.number === chapter.number);
+    if (index >= 0) {
+      newChapters[index] = chapter;
+    } else {
+      newChapters.push(chapter);
+    }
+    return newChapters.sort((a, b) => a.number - b.number);
+  });
+
+  // Update metadata
+  setChapterMetadata((prevMetadata) => {
+    const newMetadata = [...prevMetadata];
+    const index = newMetadata.findIndex((ch) => ch.number === chapter.number);
+    if (index >= 0) {
+      newMetadata[index] = { number: chapter.number, title: chapter.title };
+    } else {
+      newMetadata.push({ number: chapter.number, title: chapter.title });
+    }
+    return newMetadata.sort((a, b) => a.number - b.number);
+  });
+
+  // Reload novel
+  const updatedNovel = await getNovel(novel.id);
+  if (updatedNovel) {
+    setNovel(updatedNovel);
+  }
+}
+
+async function scrapeChapter(novelUrl: string, chapterNumber: number) {
+  const response = await fetch('/api/scrape', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: novelUrl,
+      chapterNumber,
+      type: 'syosetu',
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to scrape chapter ${chapterNumber}`);
+  }
+
+  const data = await response.json();
+  if (!data.title || !data.content) {
+    throw new Error(`No content found for chapter ${chapterNumber}`);
+  }
+
+  return { title: data.title, content: data.content };
+}
+
 export default function TranslatePage() {
   const router = useRouter();
   const { id, chapter } = router.query;
@@ -210,169 +374,60 @@ export default function TranslatePage() {
     if (!novel) return;
 
     setIsTranslating(true);
-
-    // Create a persistent toast for tracking translation progress
     const toastId = toast.loading('Starting translation...', { duration: Infinity });
 
     try {
-      let finalResult;
-      let bestResult;
-      let currentAttempt = 0;
-      const maxAttempts = 5;
+      const result = await performTranslation({
+        sourceContent,
+        novelId: novel.id,
+        currentChapterId: currentChapter?.id,
+        useAutoRetry,
+        previousTranslationData,
+        toastId,
+      });
 
-      // If we're using auto-retry, try multiple times to get the best quality
-      if (useAutoRetry) {
-        toast.loading('Using auto-retry to find best quality translation...', { id: toastId });
-        while (currentAttempt < maxAttempts) {
-          toast.loading(`Translation attempt ${currentAttempt + 1}/${maxAttempts}...`, { id: toastId });
-          const result = await translateContent({
-            sourceContent,
-            novelId: novel.id,
-            currentChapterId: currentChapter?.id,
-            ...(currentAttempt === 0
-              ? previousTranslationData
-              : bestResult
-                ? {
-                    previousTranslation: bestResult.translatedContent,
-                    qualityFeedback: bestResult.qualityCheck?.feedback || '',
-                    useImprovementFeedback: previousTranslationData?.useImprovementFeedback,
-                  }
-                : {}),
-          });
-
-          if (!bestResult || (result.qualityCheck?.score || 0) > (bestResult.qualityCheck?.score || 0)) {
-            bestResult = result;
-            if (bestResult.qualityCheck) {
-              toast.loading(
-                `New best translation found (Quality: ${Math.round(bestResult.qualityCheck.score * 100)}%)`,
-                { id: toastId }
-              );
-            }
-          }
-
-          if (result.qualityCheck?.isGoodQuality) {
-            finalResult = result;
-            toast.loading('Good quality translation found! Saving...', { id: toastId });
-            break;
-          }
-
-          currentAttempt++;
-        }
-
-        if (!finalResult && bestResult) {
-          toast.loading('Using best translation found after all attempts...', { id: toastId });
-        }
-
-        // Use the best result if no good quality was achieved
-        finalResult =
-          finalResult ||
-          bestResult ||
-          (await translateContent({
-            sourceContent,
-            novelId: novel.id,
-            currentChapterId: currentChapter?.id,
-            ...previousTranslationData,
-          }));
-      } else {
-        // Single translation attempt
-        toast.loading('Translating content...', { id: toastId });
-        finalResult = await translateContent({
-          sourceContent,
-          novelId: novel.id,
-          currentChapterId: currentChapter?.id,
-          ...previousTranslationData,
-        });
-      }
-
-      const translatedLines = finalResult.translatedContent.split('\n');
+      const translatedLines = result.translatedContent.split('\n');
       const title = translatedLines[0].startsWith('# ')
         ? translatedLines[0].substring(2)
         : `Chapter ${currentChapter?.number ?? currentChapterNumber}`;
 
       toast.loading('Saving translation...', { id: toastId });
 
-      // Check if we're retranslating an existing chapter
-      if (currentChapter) {
-        // Update existing chapter
-        const updatedChapter: TranslationChapter = {
-          ...currentChapter,
-          title,
-          sourceContent,
-          translatedContent: finalResult.translatedContent,
-          updatedAt: Date.now(),
-          qualityCheck: finalResult.qualityCheck,
-        };
+      const updatedChapter: TranslationChapter = currentChapter
+        ? {
+            ...currentChapter,
+            title,
+            sourceContent,
+            translatedContent: result.translatedContent,
+            updatedAt: Date.now(),
+            qualityCheck: result.qualityCheck,
+          }
+        : {
+            id: `chapter_${Date.now()}`,
+            title,
+            sourceContent,
+            translatedContent: result.translatedContent,
+            number: currentChapterNumber,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            qualityCheck: result.qualityCheck,
+          };
 
-        // Save the updated chapter
-        await updateChapter(novel.id, updatedChapter);
+      await saveChapter({
+        novel,
+        chapter: updatedChapter,
+        setLoadedChapters,
+        setChapterMetadata,
+        setNovel,
+      });
 
-        // Update the loadedChapters state with the new translation
-        setLoadedChapters((prevChapters) => {
-          return prevChapters.map((ch) =>
-            ch.number === updatedChapter.number ? updatedChapter : ch,
-          );
-        });
-
-        // Update the chapter metadata to reflect the new title
-        setChapterMetadata((prevMetadata) => {
-          return prevMetadata.map((ch) =>
-            ch.number === updatedChapter.number
-              ? { number: updatedChapter.number, title: updatedChapter.title }
-              : ch,
-          );
-        });
-
-        // Reload the novel to get the updated chapters
-        const updatedNovel = await getNovel(novel.id);
-        if (updatedNovel) {
-          setNovel(updatedNovel);
-        }
-      } else {
-        // Create a new chapter
-        const chapterNumber = currentChapterNumber;
-
-        const newChapter: TranslationChapter = {
-          id: `chapter_${Date.now()}`,
-          title,
-          sourceContent,
-          translatedContent: finalResult.translatedContent,
-          number: chapterNumber,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          qualityCheck: finalResult.qualityCheck,
-        };
-
-        // Save the new chapter
-        await addChapterToNovel(novel.id, newChapter);
-
-        // Update the chapter metadata to include the new chapter
-        setChapterMetadata((prevMetadata) => [
-          ...prevMetadata,
-          { number: newChapter.number, title: newChapter.title },
-        ]);
-
-        // Update loaded chapters to include the new one
-        setLoadedChapters((prevChapters) => [...prevChapters, newChapter]);
-
-        // Reload the novel to get the updated chapters
-        const updatedNovel = await getNovel(novel.id);
-        if (updatedNovel) {
-          setNovel(updatedNovel);
-        }
-      }
-
-      // Dismiss the progress toast and show success
       toast.dismiss(toastId);
       toast.success(
-        useAutoRetry
-          ? `Translation complete (${currentAttempt + 1} attempts)`
-          : 'Translation complete'
+        useAutoRetry ? `Translation complete (with auto-retry)` : 'Translation complete'
       );
-      setIsTranslating(false);
-      return finalResult;
-    } catch (error: unknown) {
+      return result;
+    } catch (error) {
       console.error('Translation error:', error);
-      // Dismiss the progress toast and show error
       toast.dismiss(toastId);
       toast.error('Failed to translate content');
       throw error;
@@ -387,174 +442,69 @@ export default function TranslatePage() {
     setIsBatchTranslating(true);
     setShouldCancelBatch(false);
 
-    // Find the highest chapter number that exists
-    const highestChapterNumber = chapterMetadata.reduce(
-      (max: number, chapter: { number: number }) =>
-        Math.max(max, chapter.number),
-      0,
-    );
-    const startingChapter = highestChapterNumber + 1;
+    const startingChapter = chapterMetadata.reduce(
+      (max, chapter) => Math.max(max, chapter.number),
+      0
+    ) + 1;
 
-    // Create a persistent toast that we'll update throughout the process
     const toastId = toast.loading(
       `Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}...`,
       { duration: Infinity },
     );
 
     try {
-      for (let i = 0; i < count; i++) {
-        // Check if we should cancel
-        if (shouldCancelBatch) {
-          toast.dismiss(toastId);
-          toast.success('Batch translation cancelled');
-          return;
-        }
-
+      for (let i = 0; i < count && !shouldCancelBatch; i++) {
         const targetChapterNumber = startingChapter + i;
         const progress = Math.round(((i + 1) / count) * 100);
 
-        // Update toast with current progress
         toast.loading(
           `Translating chapter ${targetChapterNumber} (${i + 1}/${count}) - ${progress}% complete`,
           { id: toastId },
         );
 
-        // Scrape the next chapter
-        const response = await fetch('/api/scrape', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: novel.sourceUrl,
-            chapterNumber: targetChapterNumber,
-            type: 'syosetu',
-          }),
+        const { title, content } = await scrapeChapter(novel.sourceUrl, targetChapterNumber);
+        const sourceContent = `# ${title}\n\n${content}`;
+
+        const result = await performTranslation({
+          sourceContent,
+          novelId: novel.id,
+          useAutoRetry,
+          toastId,
         });
 
-        if (!response.ok) {
-          throw new Error(`Failed to scrape chapter ${targetChapterNumber}`);
-        }
+        if (shouldCancelBatch) break;
 
-        const data = await response.json();
-        if (!data.title || !data.content) {
-          throw new Error(
-            `No content found for chapter ${targetChapterNumber}`,
-          );
-        }
-
-        // Translate the chapter
-        const sourceContent = `# ${data.title}\n\n${data.content}`;
-
-        let finalResult;
-        if (useAutoRetry) {
-          let currentAttempt = 0;
-          const maxAttempts = 5;
-          let bestResult;
-
-          while (currentAttempt < maxAttempts && !shouldCancelBatch) {
-            // Update toast with retry information
-            toast.loading(
-              `Translating chapter ${targetChapterNumber} (${i + 1}/${count}) - Attempt ${currentAttempt + 1}/5`,
-              { id: toastId },
-            );
-
-            const result = await translateContent({
-              sourceContent,
-              novelId: novel.id,
-              ...(bestResult
-                ? {
-                    previousTranslation: bestResult.translatedContent,
-                    qualityFeedback: bestResult.qualityCheck?.feedback || '',
-                    useImprovementFeedback: true,
-                  }
-                : {}),
-            });
-
-            if (
-              !bestResult ||
-              (result.qualityCheck?.score || 0) >
-                (bestResult.qualityCheck?.score || 0)
-            ) {
-              bestResult = result;
-            }
-
-            if (result.qualityCheck?.isGoodQuality) {
-              finalResult = result;
-              break;
-            }
-
-            currentAttempt++;
-          }
-
-          // Check for cancellation after the retry loop
-          if (shouldCancelBatch) {
-            toast.dismiss(toastId);
-            toast.success('Batch translation cancelled');
-            return;
-          }
-
-          finalResult =
-            bestResult ||
-            (await translateContent({
-              sourceContent,
-              novelId: novel.id,
-            }));
-        } else {
-          // Single translation attempt
-          finalResult = await translateContent({
-            sourceContent,
-            novelId: novel.id,
-          });
-        }
-
-        // Check for cancellation after translation
-        if (shouldCancelBatch) {
-          toast.dismiss(toastId);
-          toast.success('Batch translation cancelled');
-          return;
-        }
-
-        const translatedLines = finalResult.translatedContent.split('\n');
-        const title = translatedLines[0].startsWith('# ')
+        const translatedLines = result.translatedContent.split('\n');
+        const chapterTitle = translatedLines[0].startsWith('# ')
           ? translatedLines[0].substring(2)
           : `Chapter ${targetChapterNumber}`;
 
-        // Create the new chapter
         const newChapter: TranslationChapter = {
           id: `chapter_${Date.now()}_${targetChapterNumber}`,
-          title,
+          title: chapterTitle,
           sourceContent,
-          translatedContent: finalResult.translatedContent,
+          translatedContent: result.translatedContent,
           number: targetChapterNumber,
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          qualityCheck: finalResult.qualityCheck,
+          qualityCheck: result.qualityCheck,
         };
 
-        // Save the chapter
-        await addChapterToNovel(novel.id, newChapter);
-
-        // Update the chapter metadata to include the new chapter
-        setChapterMetadata((prevMetadata) => [
-          ...prevMetadata,
-          { number: newChapter.number, title: newChapter.title },
-        ]);
-
-        // Update loaded chapters to include the new one
-        setLoadedChapters((prevChapters) => [...prevChapters, newChapter]);
-
-        // Reload the novel to get updated chapters
-        const updatedNovel = await getNovel(novel.id);
-        if (updatedNovel) {
-          setNovel(updatedNovel);
-        }
+        await saveChapter({
+          novel,
+          chapter: newChapter,
+          setLoadedChapters,
+          setChapterMetadata,
+          setNovel,
+        });
       }
 
-      // Update toast to show completion
       toast.dismiss(toastId);
-      toast.success('Batch translation completed successfully');
-    } catch (error: unknown) {
+      toast.success(
+        shouldCancelBatch ? 'Batch translation cancelled' : 'Batch translation completed successfully'
+      );
+    } catch (error) {
       console.error('Batch translation error:', error);
-      // Update toast to show error
       toast.dismiss(toastId);
       toast.error('Failed to complete batch translation');
     } finally {
@@ -573,181 +523,69 @@ export default function TranslatePage() {
     setIsBatchTranslating(true);
     setShouldCancelBatch(false);
 
-    // Create a persistent toast that we'll update throughout the process
     const toastId = toast.loading(
       `Starting bulk retranslation from chapter ${startChapter} to ${endChapter}...`,
       { duration: Infinity },
     );
 
     try {
-      for (let i = startChapter; i <= endChapter; i++) {
-        // Check if we should cancel
-        if (shouldCancelBatch) {
-          toast.dismiss(toastId);
-          toast.success('Bulk retranslation cancelled');
-          return;
-        }
-
+      for (let i = startChapter; i <= endChapter && !shouldCancelBatch; i++) {
         const progress = Math.round(
-          ((i - startChapter + 1) / (endChapter - startChapter + 1)) * 100,
+          ((i - startChapter + 1) / (endChapter - startChapter + 1)) * 100
         );
 
-        // Update toast with current progress
         toast.loading(
           `Retranslating chapter ${i} (${i - startChapter + 1}/${endChapter - startChapter + 1}) - ${progress}% complete`,
           { id: toastId },
         );
 
-        // Scrape the chapter
-        const response = await fetch('/api/scrape', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: novel.sourceUrl,
-            chapterNumber: i,
-            type: 'syosetu',
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to scrape chapter ${i}`);
-        }
-
-        const data = await response.json();
-        if (!data.title || !data.content) {
-          throw new Error(`No content found for chapter ${i}`);
-        }
-
-        // Get the existing chapter if it exists
         const existingChapter = loadedChapters.find((ch) => ch.number === i);
         if (!existingChapter) {
           throw new Error(`Chapter ${i} not found`);
         }
 
-        // Translate the chapter
-        const sourceContent = `# ${data.title}\n\n${data.content}`;
+        const { title, content } = await scrapeChapter(novel.sourceUrl, i);
+        const sourceContent = `# ${title}\n\n${content}`;
 
-        let finalResult;
-        if (useAutoRetry) {
-          let currentAttempt = 0;
-          const maxAttempts = 5;
-          let bestResult;
+        const result = await performTranslation({
+          sourceContent,
+          novelId: novel.id,
+          currentChapterId: existingChapter.id,
+          useAutoRetry,
+          toastId,
+        });
 
-          while (currentAttempt < maxAttempts && !shouldCancelBatch) {
-            // Update toast with retry information
-            toast.loading(
-              `Retranslating chapter ${i} - Attempt ${currentAttempt + 1}/5`,
-              { id: toastId },
-            );
+        if (shouldCancelBatch) break;
 
-            const result = await translateContent({
-              sourceContent,
-              novelId: novel.id,
-              currentChapterId: existingChapter?.id,
-              ...(bestResult
-                ? {
-                    previousTranslation: bestResult.translatedContent,
-                    qualityFeedback: bestResult.qualityCheck?.feedback || '',
-                    useImprovementFeedback: true,
-                  }
-                : {}),
-            });
-
-            if (
-              !bestResult ||
-              (result.qualityCheck?.score || 0) >
-                (bestResult.qualityCheck?.score || 0)
-            ) {
-              bestResult = result;
-            }
-
-            if (result.qualityCheck?.isGoodQuality) {
-              finalResult = result;
-              break;
-            }
-
-            currentAttempt++;
-          }
-
-          finalResult =
-            bestResult ||
-            (await translateContent({
-              sourceContent,
-              novelId: novel.id,
-              currentChapterId: existingChapter?.id,
-            }));
-        } else {
-          // Single translation attempt
-          finalResult = await translateContent({
-            sourceContent,
-            novelId: novel.id,
-            currentChapterId: existingChapter?.id,
-          });
-        }
-
-        // Check for cancellation after translation
-        if (shouldCancelBatch) {
-          toast.dismiss(toastId);
-          toast.success('Bulk retranslation cancelled');
-          return;
-        }
-
-        const translatedLines = finalResult.translatedContent.split('\n');
-        const title = translatedLines[0].startsWith('# ')
+        const translatedLines = result.translatedContent.split('\n');
+        const chapterTitle = translatedLines[0].startsWith('# ')
           ? translatedLines[0].substring(2)
           : `Chapter ${i}`;
 
-        // Create or update the chapter
         const updatedChapter: TranslationChapter = {
-          id: existingChapter.id,
-          title,
+          ...existingChapter,
+          title: chapterTitle,
           sourceContent,
-          translatedContent: finalResult.translatedContent,
-          number: i,
-          createdAt: existingChapter.createdAt,
+          translatedContent: result.translatedContent,
           updatedAt: Date.now(),
-          qualityCheck: finalResult.qualityCheck,
+          qualityCheck: result.qualityCheck,
         };
 
-        await updateChapter(novel.id, updatedChapter);
-
-        // Update loaded chapters
-        setLoadedChapters((prevChapters) => {
-          const newChapters = [...prevChapters];
-          const index = newChapters.findIndex(
-            (ch) => ch.id === updatedChapter.id,
-          );
-          if (index >= 0) {
-            newChapters[index] = updatedChapter;
-          } else {
-            newChapters.push(updatedChapter);
-          }
-          return newChapters.sort((a, b) => a.number - b.number);
-        });
-
-        // Update the chapter metadata
-        setChapterMetadata((prevMetadata) => {
-          const newMetadata = [...prevMetadata];
-          const index = newMetadata.findIndex((ch) => ch.number === i);
-          if (index >= 0) {
-            newMetadata[index] = { number: i, title: updatedChapter.title };
-          }
-          return newMetadata;
+        await saveChapter({
+          novel,
+          chapter: updatedChapter,
+          setLoadedChapters,
+          setChapterMetadata,
+          setNovel,
         });
       }
 
-      // Update toast to show completion
       toast.dismiss(toastId);
-      toast.success('Bulk retranslation completed successfully');
-
-      // Reload the novel to get updated chapters
-      const updatedNovel = await getNovel(novel.id);
-      if (updatedNovel) {
-        setNovel(updatedNovel);
-      }
-    } catch (error: unknown) {
+      toast.success(
+        shouldCancelBatch ? 'Bulk retranslation cancelled' : 'Bulk retranslation completed successfully'
+      );
+    } catch (error) {
       console.error('Bulk retranslation error:', error);
-      // Update toast to show error
       toast.dismiss(toastId);
       toast.error('Failed to complete bulk retranslation');
     } finally {
