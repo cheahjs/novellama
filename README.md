@@ -1,5 +1,7 @@
 # Novellama
 
+![Icon](./public/icon.png)
+
 Novellama is a web app designed to help translate web novels into another language using LLMs.
 
 It is currently specifically designed for translating web novels from [Syoyetsu](https://syosetu.com/).
