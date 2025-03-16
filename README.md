@@ -2,6 +2,8 @@
 
 Novellama is a web app designed to help translate web novels into another language using LLMs.
 
+It is currently specifically designed for translating web novels from [Syoyetsu](https://syosetu.com/).
+
 ## Configuration
 
 Environment variables:
@@ -14,6 +16,8 @@ Environment variables:
 - `QUALITY_CHECK_TEMPERATURE`: The temperature to use for quality check. Default is `0.1`.
 - `MAX_TOKENS`: The maximum number of tokens to use for the OpenAI-compatible API. Default is `16000`.
 - `TOKENIZER_MODEL`: The tokenizer model on HuggingFace to use with transformers.js for counting tokens. Default is `Xenova/gpt-4o`.
+
+The translations have been tested using `gemini-2.0-flash` as the translation model and `gemini-2.0-pro-exp-02-05` as the quality check model.
 
 ## Development
 
