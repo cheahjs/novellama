@@ -91,10 +91,14 @@ async function constructMessages(
   let context: ChatMessage[] = [];
   if (novel.chapters && novel.chapters.length > 0) {
     // Filter out the current chapter if it exists
-    const previousChapters = novel.chapters.filter(
-      (chapter) =>
-        !request.currentChapterId || chapter.id !== request.currentChapterId,
-    );
+    // Also filter out chapters with low quality translations
+    const previousChapters = novel.chapters.filter((chapter) => {
+      const isNotCurrentChapter =
+        !request.currentChapterId || chapter.id !== request.currentChapterId;
+      const isGoodTranslation =
+        chapter.qualityCheck && chapter.qualityCheck.score >= 6;
+      return isNotCurrentChapter && isGoodTranslation;
+    });
 
     // Get the index of the current chapter
     const currentChapterIndex = request.currentChapterId
