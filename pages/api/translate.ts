@@ -303,5 +303,14 @@ export default async function handler(
 function postProcessTranslation(translation: string) {
   // Remove any XML like tags including closing tags
   translation = translation.replace(/<\/?[^>]*>/g, '');
+  // Remove any markdown code blocks using backticks
+  translation = translation.replace(/```[\s\S]*?```/g, '');
+  // Trim whitespace
+  translation = translation.trim();
+  // Check if there's a second title header (eg # Chapter 2), and remove all content after it
+  const secondHeaderIndex = translation.indexOf('\n# ');
+  if (secondHeaderIndex !== -1) {
+    translation = translation.substring(0, secondHeaderIndex);
+  }
   return translation;
 }
