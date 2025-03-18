@@ -29,6 +29,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
       novel.translationTemplate ||
       'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.\n\n${sourceContent}',
   });
+  const [editingReferenceId, setEditingReferenceId] = useState<string | null>(null);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -60,12 +61,28 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
   };
 
   const handleEditReference = (updatedReference: Reference) => {
+    setEditingReferenceId(updatedReference.id);
+  };
+
+  const handleSaveEditedReference = (
+    reference: Omit<Reference, 'id' | 'createdAt' | 'updatedAt' | 'tokenCount'>,
+  ) => {
+    if (!editingReferenceId) return;
+
+    const updatedReference: Reference = {
+      ...reference,
+      id: editingReferenceId,
+      updatedAt: Date.now(),
+      createdAt: formData.references.find(ref => ref.id === editingReferenceId)?.createdAt || Date.now(),
+    };
+
     setFormData((prev) => ({
       ...prev,
       references: prev.references.map((ref) =>
-        ref.id === updatedReference.id ? updatedReference : ref,
+        ref.id === editingReferenceId ? updatedReference : ref,
       ),
     }));
+    setEditingReferenceId(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -199,14 +216,30 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
             <label className="mb-1 block text-sm font-medium">References</label>
             <div className="space-y-4">
               {formData.references.map((reference) => (
-                <ReferenceItem
-                  key={reference.id}
-                  reference={reference}
-                  onDelete={handleDeleteReference}
-                  onEdit={handleEditReference}
-                />
+                editingReferenceId === reference.id ? (
+                  <div key={reference.id}>
+                    <ReferenceInput 
+                      onAdd={handleSaveEditedReference} 
+                      initialReference={reference}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditingReferenceId(null)}
+                      className="mt-2 text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      Cancel Edit
+                    </button>
+                  </div>
+                ) : (
+                  <ReferenceItem
+                    key={reference.id}
+                    reference={reference}
+                    onDelete={handleDeleteReference}
+                    onEdit={handleEditReference}
+                  />
+                )
               ))}
-              <ReferenceInput onAdd={handleAddReference} />
+              {!editingReferenceId && <ReferenceInput onAdd={handleAddReference} />}
             </div>
           </div>
 
