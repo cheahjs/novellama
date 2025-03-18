@@ -72,16 +72,16 @@ Consider:
 2. Fluency: Is it natural in the target language?
 3. Completeness: Was anything omitted or added inappropriately? 
    - IMPORTANT: Compare the source and translation line by line, especially the first and last lines
-   - Check that paragraph breaks match between source and translation
    - Be aware that some sentences might be split differently due to language differences
-   - Count the number of paragraphs in both source and translation to ensure none are missing
 4. Title: The title must be translated. If the title translation deviates from the source title (such as an irrelevant translation or incorrect numbering), this is a significant issue and should not score higher than 7.
 5. Extraneous content: If there's extraneous content in the translation, this is a significant issue and should not score higher than 7. Extraneous content is content that is not part of the source content, for example if it appears that the contents of another chapter is included in the translation.
    - Author comments at the start and end of the chapter are acceptable and are not considered extraneous content.
    - The content may be separated by horizontal rules (---). These indicate the boundaries between preface, main content, and afterword sections. Ensure all sections are translated and maintain their relative positions.
 6. The content inside of <translation> tags must only contain the translation, and not any other content such as feedback or the source content. If there is any other content, this is a significant issue and should not score higher than 7. Don't mention the translation tags in the feedback - the translator does not see the tags.
 7. Meta-commentary: The translation should not contain any meta-commentary about the translation process, feedback incorporation, or translator notes. If it does, this is a significant issue and should not score higher than 7.
+   - The author's comments in the preface and afterword (marked by horizontal rules) are acceptable and are not considered meta-commentary, and should be translated.
 8. Is the text actually translated? If the translation is still in the source language, it should score 0.
+9. If there are markdown code blocks using backticks in the translation, these are invalid and should not score higher than 7.
 
 Before assigning a score below 8 for missing content:
 - Double-check that you're not missing content due to different sentence structures between languages
