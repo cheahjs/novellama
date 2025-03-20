@@ -29,6 +29,7 @@ interface TranslationEditorProps {
     },
   ) => Promise<TranslationResponse | undefined>;
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
+  onQualityCheck?: (sourceContent: string, translatedContent: string) => Promise<TranslationResponse | undefined>;
   isTranslating: boolean;
   onBatchTranslate?: (count: number, useAutoRetry: boolean) => Promise<void>;
   onBatchRetranslate?: (
@@ -47,6 +48,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   chapter,
   onTranslate,
   onSaveEdit,
+  onQualityCheck,
   isTranslating,
   onBatchTranslate,
   onBatchRetranslate,
@@ -61,6 +63,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [showSource, setShowSource] = useState<boolean>(false);
   const [isScrapingChapter, setIsScrapingChapter] = useState<boolean>(false);
   const [isRetranslating, setIsRetranslating] = useState<boolean>(false);
+  const [isCheckingQuality, setIsCheckingQuality] = useState<boolean>(false);
   const [lastTokenUsage, setLastTokenUsage] =
     useState<TranslationResponse['tokenUsage']>();
   const [lastQualityCheck, setLastQualityCheck] =
@@ -192,6 +195,27 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     }
   };
 
+  const handleQualityCheck = async () => {
+    if (!displayedChapter || !onQualityCheck || isCheckingQuality) return;
+    
+    setIsCheckingQuality(true);
+    try {
+      const result = await onQualityCheck(
+        displayedChapter.sourceContent,
+        isEditing ? editContent : displayedChapter.translatedContent
+      );
+      if (result?.qualityCheck) {
+        setLastQualityCheck(result.qualityCheck);
+        toast.success('Quality check completed');
+      }
+    } catch (error) {
+      console.error('Quality check error:', error);
+      toast.error('Failed to check quality');
+    } finally {
+      setIsCheckingQuality(false);
+    }
+  };
+
   return (
     <div className="mt-6 space-y-4">
       {displayedChapter && !isRetranslating ? (
@@ -230,6 +254,17 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                     </>
                   ))}
               </button>
+              {onQualityCheck && !showSource && (
+                <button
+                  type="button"
+                  onClick={handleQualityCheck}
+                  disabled={isCheckingQuality}
+                  className="flex items-center text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50"
+                >
+                  <FiRefreshCw className={`mr-1 ${isCheckingQuality ? 'animate-spin' : ''}`} />
+                  {isCheckingQuality ? 'Checking...' : 'Check Quality'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowSource(!showSource)}

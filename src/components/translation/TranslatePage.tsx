@@ -598,6 +598,43 @@ export default function TranslatePage() {
     setShouldCancelBatch(true);
   };
 
+  const handleQualityCheck = async (sourceContent: string, translatedContent: string) => {
+    if (!novel) return;
+
+    try {
+      const result = await translateContent({
+        sourceContent,
+        novelId: novel.id,
+        currentChapterId: currentChapter?.id,
+        previousTranslation: translatedContent,
+        // Skip improvement feedback since we just want a fresh quality check
+        useImprovementFeedback: false,
+      });
+
+      // If we have a quality check result, update the chapter
+      if (result.qualityCheck && currentChapter) {
+        const updatedChapter: TranslationChapter = {
+          ...currentChapter,
+          qualityCheck: result.qualityCheck,
+          updatedAt: Date.now(),
+        };
+
+        await saveChapter({
+          novel,
+          chapter: updatedChapter,
+          setLoadedChapters,
+          setChapterMetadata,
+          setNovel,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Quality check error:', error);
+      throw error;
+    }
+  };
+
   const handleNavigate = async (chapterNumber: number) => {
     if (!novel) return;
 
@@ -744,6 +781,7 @@ export default function TranslatePage() {
           chapter={currentChapter}
           onSaveEdit={handleSaveEdit}
           onTranslate={handleTranslate}
+          onQualityCheck={handleQualityCheck}
           isTranslating={isTranslating}
           isBatchTranslating={isBatchTranslating}
           onBatchTranslate={handleBatchTranslate}
