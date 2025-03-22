@@ -67,7 +67,9 @@ async function performTranslation({
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (toastId) {
-      toast.loading(`Translation attempt ${attempt + 1}/${maxAttempts}...`, { id: toastId });
+      toast.loading(`Translation attempt ${attempt + 1}/${maxAttempts}...`, {
+        id: toastId,
+      });
     }
 
     const result = await translateContent({
@@ -85,12 +87,15 @@ async function performTranslation({
           : {}),
     });
 
-    if (!bestResult || (result.qualityCheck?.score || 0) > (bestResult.qualityCheck?.score || 0)) {
+    if (
+      !bestResult ||
+      (result.qualityCheck?.score || 0) > (bestResult.qualityCheck?.score || 0)
+    ) {
       bestResult = result;
       if (toastId && bestResult.qualityCheck) {
         toast.loading(
           `New best translation found (Quality: ${Math.round(bestResult.qualityCheck.score * 100)}%)`,
-          { id: toastId }
+          { id: toastId },
         );
       }
     }
@@ -100,7 +105,10 @@ async function performTranslation({
     }
   }
 
-  return bestResult || await translateContent({ sourceContent, novelId, currentChapterId });
+  return (
+    bestResult ||
+    (await translateContent({ sourceContent, novelId, currentChapterId }))
+  );
 }
 
 async function saveChapter({
@@ -113,15 +121,17 @@ async function saveChapter({
   novel: Novel;
   chapter: TranslationChapter;
   setLoadedChapters: (
-    updater: (chapters: TranslationChapter[]) => TranslationChapter[]
+    updater: (chapters: TranslationChapter[]) => TranslationChapter[],
   ) => void;
   setChapterMetadata: (
-    updater: (metadata: Array<{ number: number; title: string }>) => Array<{ number: number; title: string }>
+    updater: (
+      metadata: Array<{ number: number; title: string }>,
+    ) => Array<{ number: number; title: string }>,
   ) => void;
   setNovel: (novel: Novel | null) => void;
 }) {
   const isNewChapter = !chapter.id.startsWith('chapter_');
-  
+
   if (isNewChapter) {
     await addChapterToNovel(novel.id, chapter);
   } else {
@@ -374,7 +384,9 @@ export default function TranslatePage() {
     if (!novel) return;
 
     setIsTranslating(true);
-    const toastId = toast.loading('Starting translation...', { duration: Infinity });
+    const toastId = toast.loading('Starting translation...', {
+      duration: Infinity,
+    });
 
     try {
       const result = await performTranslation({
@@ -423,7 +435,9 @@ export default function TranslatePage() {
 
       toast.dismiss(toastId);
       toast.success(
-        useAutoRetry ? `Translation complete (with auto-retry)` : 'Translation complete'
+        useAutoRetry
+          ? `Translation complete (with auto-retry)`
+          : 'Translation complete',
       );
       return result;
     } catch (error) {
@@ -442,10 +456,11 @@ export default function TranslatePage() {
     setIsBatchTranslating(true);
     setShouldCancelBatch(false);
 
-    const startingChapter = chapterMetadata.reduce(
-      (max, chapter) => Math.max(max, chapter.number),
-      0
-    ) + 1;
+    const startingChapter =
+      chapterMetadata.reduce(
+        (max, chapter) => Math.max(max, chapter.number),
+        0,
+      ) + 1;
 
     const toastId = toast.loading(
       `Starting batch translation from chapter ${startingChapter} to ${startingChapter + count - 1}...`,
@@ -462,7 +477,10 @@ export default function TranslatePage() {
           { id: toastId },
         );
 
-        const { title, content } = await scrapeChapter(novel.sourceUrl, targetChapterNumber);
+        const { title, content } = await scrapeChapter(
+          novel.sourceUrl,
+          targetChapterNumber,
+        );
         const sourceContent = `# ${title}\n\n${content}`;
 
         const result = await performTranslation({
@@ -501,7 +519,9 @@ export default function TranslatePage() {
 
       toast.dismiss(toastId);
       toast.success(
-        shouldCancelBatch ? 'Batch translation cancelled' : 'Batch translation completed successfully'
+        shouldCancelBatch
+          ? 'Batch translation cancelled'
+          : 'Batch translation completed successfully',
       );
     } catch (error) {
       console.error('Batch translation error:', error);
@@ -531,7 +551,7 @@ export default function TranslatePage() {
     try {
       for (let i = startChapter; i <= endChapter && !shouldCancelBatch; i++) {
         const progress = Math.round(
-          ((i - startChapter + 1) / (endChapter - startChapter + 1)) * 100
+          ((i - startChapter + 1) / (endChapter - startChapter + 1)) * 100,
         );
 
         toast.loading(
@@ -582,7 +602,9 @@ export default function TranslatePage() {
 
       toast.dismiss(toastId);
       toast.success(
-        shouldCancelBatch ? 'Bulk retranslation cancelled' : 'Bulk retranslation completed successfully'
+        shouldCancelBatch
+          ? 'Bulk retranslation cancelled'
+          : 'Bulk retranslation completed successfully',
       );
     } catch (error) {
       console.error('Bulk retranslation error:', error);
@@ -598,7 +620,10 @@ export default function TranslatePage() {
     setShouldCancelBatch(true);
   };
 
-  const handleQualityCheck = async (sourceContent: string, translatedContent: string) => {
+  const handleQualityCheck = async (
+    sourceContent: string,
+    translatedContent: string,
+  ) => {
     if (!novel) return;
 
     try {
@@ -790,6 +815,18 @@ export default function TranslatePage() {
           novelSourceUrl={novel.sourceUrl}
           nextChapterNumber={chapterMetadata.length + 1}
           totalChapters={chapterMetadata.length}
+        />
+
+        <ChapterNavigation
+          currentChapter={currentChapterNumber}
+          totalChapters={chapterMetadata.length}
+          onNavigate={handleNavigate}
+          chapters={chapterMetadata}
+          onDeleteLatest={
+            currentChapterNumber === chapterMetadata.length
+              ? handleDeleteLatest
+              : undefined
+          }
         />
       </div>
 
