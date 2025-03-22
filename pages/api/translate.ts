@@ -3,6 +3,7 @@ import axios from 'axios';
 import { NovelWithChapters, Reference } from '@/types';
 import { truncateContext } from '@/utils/tokenizer';
 import { getNovelById } from '@/utils/fileStorage';
+import { serverConfig } from '../../config';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -222,12 +223,10 @@ export default async function handler(
       return res.status(404).json({ message: 'Novel not found' });
     }
 
-    const url = `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`;
-    const model = process.env.TRANSLATION_MODEL || 'gpt-4';
-    const temperature = parseFloat(
-      process.env.TRANSLATION_TEMPERATURE || '0.1',
-    );
-    const apiKey = process.env.OPENAI_API_KEY!;
+    const url = `${serverConfig.openaiBaseUrl}/chat/completions`;
+    const model = serverConfig.translationModel;
+    const temperature = serverConfig.translationTemperature;
+    const apiKey = serverConfig.openaiApiKey;
 
     // Construct messages on the server side using novel metadata
     const { messages, tokenCounts } = await constructMessages(novel, request);

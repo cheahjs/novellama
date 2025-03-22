@@ -1,26 +1,21 @@
 import { AutoTokenizer } from '@huggingface/transformers';
 import type { PreTrainedTokenizer } from '@huggingface/transformers';
 import assert from 'assert';
+import { serverConfig } from '../../config';
 
 let encoder: PreTrainedTokenizer | null = null;
 
 export async function initTokenizer(): Promise<PreTrainedTokenizer> {
   if (!encoder) {
     try {
-      // Get model name from environment or use default
-      const modelName = process.env.TOKENIZER_MODEL || 'Xenova/gpt-4o';
+      // Get model name from server config (this file is only used server-side)
+      const modelName = serverConfig.tokenizerModel;
 
-      // For server-side usage, we need to ensure proper initialization
-      if (typeof window === 'undefined') {
-        // Initialize tokenizer for server environment
-        encoder = await AutoTokenizer.from_pretrained(modelName, {
-          progress_callback: undefined,
-          cache_dir: './data/cache',
-        });
-      } else {
-        // Client-side initialization
-        encoder = await AutoTokenizer.from_pretrained(modelName);
-      }
+      // Initialize tokenizer for server environment
+      encoder = await AutoTokenizer.from_pretrained(modelName, {
+        progress_callback: undefined,
+        cache_dir: './data/cache',
+      });
     } catch (error) {
       console.error('Error initializing tokenizer:', error);
       throw error; // Propagate the error to handle it upstream
@@ -61,7 +56,7 @@ export async function countMessagesTokens(
 
 export async function truncateContext(
   messages: { role: string; content: string }[],
-  maxTokens: number = Number.parseInt(process.env.MAX_TOKENS ?? '16000'),
+  maxTokens: number = serverConfig.maxTokens,
 ): Promise<{
   messages: { role: string; content: string }[];
   tokenCounts: {

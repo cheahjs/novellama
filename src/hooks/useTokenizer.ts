@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useConfig } from './useConfig';
 
 interface TokenizerState {
   isLoading: boolean;
@@ -19,10 +20,6 @@ const pendingRequests = new Map<number, (result: WorkerResult) => void>();
 let isWorkerInitialized = false;
 let initializationPromise: Promise<void> | null = null;
 let isInitializing = false;
-
-// Get the model name from environment variables
-const TOKENIZER_MODEL =
-  process.env.NEXT_PUBLIC_TOKENIZER_MODEL || 'Xenova/gpt-4o';
 
 // Debounce helper function
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,10 +43,10 @@ const debounce = <T extends (...args: any[]) => void>(
 export function useTokenizer(
   text: string,
   debounceMs: number = 500,
-  modelName: string = TOKENIZER_MODEL,
 ): TokenizerState {
+  const { config, isLoading: isConfigLoading, error: configError } = useConfig();
   const [state, setState] = useState<TokenizerState>({
-    isLoading: !isWorkerInitialized && !isInitializing,
+    isLoading: true,
     error: null,
     count: null,
   });
@@ -73,10 +70,24 @@ export function useTokenizer(
   }, []);
 
   // Store the debounced function in a ref so it persists across renders
-  const debouncedCountRef =
-    useRef<(text: string) => void | undefined>(undefined);
+  const debouncedCountRef = useRef<(text: string) => void | undefined>(undefined);
 
   useEffect(() => {
+    if (isConfigLoading) {
+      setState(prev => ({ ...prev, isLoading: true }));
+      return;
+    }
+
+    if (configError) {
+      handleError(configError);
+      return;
+    }
+
+    if (!config) {
+      handleError('Configuration not available');
+      return;
+    }
+
     // Initialize worker if it doesn't exist
     if (!workerInstance && !isInitializing) {
       if (!initializationPromise) {
@@ -104,12 +115,16 @@ export function useTokenizer(
               }
             };
 
-            // Initialize the tokenizer
+            // Initialize the tokenizer with config from API
             const id = nextId++;
             const promise = new Promise<WorkerResult>((resolve) => {
               pendingRequests.set(id, resolve);
             });
-            workerInstance.postMessage({ type: 'init', id, modelName });
+            workerInstance.postMessage({ 
+              type: 'init', 
+              id, 
+              modelName: config.tokenizerModel 
+            });
 
             promise.then((result: WorkerResult) => {
               if (result.error) {
@@ -147,7 +162,7 @@ export function useTokenizer(
         initializationPromise = null;
       }
     };
-  }, [modelName, handleError, handleInitSuccess]);
+  }, [config, isConfigLoading, configError, handleError, handleInitSuccess]);
 
   // Initialize the debounced count function
   useEffect(() => {

@@ -5,16 +5,14 @@ interface LiveTokenCounterProps {
   text: string;
   className?: string;
   debounceMs?: number;
-  modelName?: string;
 }
 
 const LiveTokenCounter: React.FC<LiveTokenCounterProps> = ({
   text,
   className = '',
   debounceMs = 500,
-  modelName,
 }) => {
-  const { count, isLoading, error } = useTokenizer(text, debounceMs, modelName);
+  const { count, isLoading, error } = useTokenizer(text, debounceMs);
 
   if (error) {
     return (

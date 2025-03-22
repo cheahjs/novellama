@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 import { QualityCheckResponse } from '@/types';
+import { serverConfig } from '../../config';
 
 interface QualityCheckRequest {
   sourceContent: string;
@@ -57,7 +58,7 @@ async function getQualityCheck(
   targetLanguage: string,
   retryCount = 0,
 ): Promise<QualityCheckResponse> {
-  const url = `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`;
+  const url = `${serverConfig.openaiBaseUrl}/chat/completions`;
 
   const systemPrompt = `You are a professional translator quality checker. 
 You will be given a source text in ${sourceLanguage} and its translation in ${targetLanguage}.
@@ -111,12 +112,12 @@ ${translatedContent}
     const apiResponse = await axios.post(
       url,
       {
-        model: process.env.QUALITY_CHECK_MODEL || 'gpt-4',
+        model: serverConfig.qualityCheckModel,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        temperature: parseFloat(process.env.QUALITY_CHECK_TEMPERATURE || '0.1'),
+        temperature: serverConfig.qualityCheckTemperature,
         response_format: {
           type: 'json_schema',
           json_schema: {
@@ -135,7 +136,7 @@ ${translatedContent}
       {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          Authorization: `Bearer ${serverConfig.openaiApiKey}`,
         },
       },
     );
