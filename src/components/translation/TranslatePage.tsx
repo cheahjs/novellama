@@ -12,7 +12,7 @@ import {
   updateChapter,
   getChapterTOC,
 } from '@/services/storage';
-import { translateContent } from '@/services/api';
+import { checkTranslationQuality, translateContent } from '@/services/api';
 import TranslationEditor from '@/components/translation/TranslationEditor';
 import ChapterNavigation from '@/components/translation/ChapterNavigation';
 import NovelSettings from '@/components/novel/NovelSettings';
@@ -64,44 +64,61 @@ async function performTranslation({
 
   let bestResult: TranslationResult | null = null;
   const maxAttempts = 5;
+  let lastToastId: string | null = null;
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    if (toastId) {
-      toast.loading(`Translation attempt ${attempt + 1}/${maxAttempts}...`, {
-        id: toastId,
-      });
-    }
-
-    const result = await translateContent({
-      sourceContent,
-      novelId,
-      currentChapterId,
-      ...(attempt === 0
-        ? previousTranslationData
-        : bestResult
-          ? {
-              previousTranslation: bestResult.translatedContent,
-              qualityFeedback: bestResult.qualityCheck?.feedback || '',
-              useImprovementFeedback: true,
-            }
-          : {}),
-    });
-
-    if (
-      !bestResult ||
-      (result.qualityCheck?.score || 0) > (bestResult.qualityCheck?.score || 0)
-    ) {
-      bestResult = result;
-      if (toastId && bestResult.qualityCheck) {
-        toast.loading(
-          `New best translation found (Quality: ${Math.round(bestResult.qualityCheck.score * 100)}%)`,
-          { id: toastId },
+  try {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (toastId) {
+        lastToastId = toast.loading(
+          `Translation attempt ${attempt + 1}/${maxAttempts}...`,
+          {
+            duration: Infinity,
+          },
         );
       }
-    }
 
-    if (result.qualityCheck?.isGoodQuality) {
-      return result;
+      const result = await translateContent({
+        sourceContent,
+        novelId,
+        currentChapterId,
+        ...(attempt === 0
+          ? previousTranslationData
+          : bestResult
+            ? {
+                previousTranslation: bestResult.translatedContent,
+                qualityFeedback: bestResult.qualityCheck?.feedback || '',
+                useImprovementFeedback: true,
+              }
+            : {}),
+      });
+      if (lastToastId) {
+        toast.dismiss(lastToastId);
+      }
+
+      if (
+        !bestResult ||
+        (result.qualityCheck?.score || 0) >
+          (bestResult.qualityCheck?.score || 0)
+      ) {
+        bestResult = result;
+        if (toastId && bestResult.qualityCheck) {
+          toast.loading(
+            `New best translation found (Score: ${bestResult.qualityCheck.score})`,
+            { duration: 10_000 },
+          );
+        }
+      }
+
+      if (result.qualityCheck?.isGoodQuality) {
+        return result;
+      }
+    }
+  } catch (error) {
+    console.error('Translation error:', error);
+    toast.error(`Translation failed: ${error}`);
+  } finally {
+    if (lastToastId) {
+      toast.dismiss(lastToastId);
     }
   }
 
@@ -549,6 +566,32 @@ export default function TranslatePage() {
     );
 
     try {
+      // First load all chapters in the range
+      toast.loading('Loading chapters...', { id: toastId });
+      const loadedNovel = await getNovel(novel.id, {
+        start: startChapter,
+        end: endChapter,
+      });
+      if (!loadedNovel || !loadedNovel.chapters) {
+        throw new Error('Failed to load chapters');
+      }
+
+      // Update loadedChapters state with the loaded chapters
+      setLoadedChapters((prevChapters) => {
+        const newChapters = [...prevChapters];
+        loadedNovel.chapters.forEach((chapter) => {
+          const index = newChapters.findIndex(
+            (c) => c.number === chapter.number,
+          );
+          if (index >= 0) {
+            newChapters[index] = chapter;
+          } else {
+            newChapters.push(chapter);
+          }
+        });
+        return newChapters.sort((a, b) => a.number - b.number);
+      });
+
       for (let i = startChapter; i <= endChapter && !shouldCancelBatch; i++) {
         const progress = Math.round(
           ((i - startChapter + 1) / (endChapter - startChapter + 1)) * 100,
@@ -559,7 +602,9 @@ export default function TranslatePage() {
           { id: toastId },
         );
 
-        const existingChapter = loadedChapters.find((ch) => ch.number === i);
+        const existingChapter = loadedNovel.chapters.find(
+          (ch) => ch.number === i,
+        );
         if (!existingChapter) {
           throw new Error(`Chapter ${i} not found`);
         }
@@ -627,20 +672,18 @@ export default function TranslatePage() {
     if (!novel) return;
 
     try {
-      const result = await translateContent({
-        sourceContent,
-        novelId: novel.id,
-        currentChapterId: currentChapter?.id,
-        previousTranslation: translatedContent,
-        // Skip improvement feedback since we just want a fresh quality check
-        useImprovementFeedback: false,
+      const qualityCheckResponse = await checkTranslationQuality({
+        sourceContent: sourceContent,
+        translatedContent,
+        sourceLanguage: novel.sourceLanguage,
+        targetLanguage: novel.targetLanguage,
       });
 
       // If we have a quality check result, update the chapter
-      if (result.qualityCheck && currentChapter) {
+      if (qualityCheckResponse && currentChapter) {
         const updatedChapter: TranslationChapter = {
           ...currentChapter,
-          qualityCheck: result.qualityCheck,
+          qualityCheck: qualityCheckResponse,
           updatedAt: Date.now(),
         };
 
@@ -653,7 +696,7 @@ export default function TranslatePage() {
         });
       }
 
-      return result;
+      return qualityCheckResponse;
     } catch (error) {
       console.error('Quality check error:', error);
       throw error;

@@ -9,7 +9,7 @@ import {
   FiPlayCircle,
   FiCloudLightning,
 } from 'react-icons/fi';
-import { TranslationChapter, TranslationResponse } from '@/types';
+import { QualityCheckResponse, TranslationChapter, TranslationResponse } from '@/types';
 import LiveTokenCounter from '@/components/info/LiveTokenCounter';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -29,7 +29,7 @@ interface TranslationEditorProps {
     },
   ) => Promise<TranslationResponse | undefined>;
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
-  onQualityCheck?: (sourceContent: string, translatedContent: string) => Promise<TranslationResponse | undefined>;
+  onQualityCheck?: (sourceContent: string, translatedContent: string) => Promise<QualityCheckResponse | undefined>;
   isTranslating: boolean;
   onBatchTranslate?: (count: number, useAutoRetry: boolean) => Promise<void>;
   onBatchRetranslate?: (
@@ -204,13 +204,13 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         displayedChapter.sourceContent,
         isEditing ? editContent : displayedChapter.translatedContent
       );
-      if (result?.qualityCheck) {
-        setLastQualityCheck(result.qualityCheck);
-        toast.success('Quality check completed');
+      if (result) {
+        setLastQualityCheck(result);
+        toast.success(`Quality check of ${displayedChapter.number} completed`);
       }
     } catch (error) {
       console.error('Quality check error:', error);
-      toast.error('Failed to check quality');
+      toast.error(`Failed to check quality of ${displayedChapter.number}`);
     } finally {
       setIsCheckingQuality(false);
     }
