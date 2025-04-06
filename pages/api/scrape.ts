@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { Readability } from '@mozilla/readability';
 import { JSDOM } from 'jsdom';
 import axios from 'axios';
+import TurndownService from 'turndown';
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,18 +34,17 @@ export default async function handler(
         .querySelector('.p-novel__title')
         ?.textContent?.trim();
 
-      // Extract preface, main content, and afterword
-      const preface = document
-        .querySelector('.p-novel__text--preface')
-        ?.textContent?.trim();
-      const mainContent = document
-        .querySelector(
-          '.js-novel-text:not(.p-novel__text--preface):not(.p-novel__text--afterword)',
-        )
-        ?.textContent?.trim();
-      const afterword = document
-        .querySelector('.p-novel__text--afterword')
-        ?.textContent?.trim();
+      // // Extract preface, main content, and afterword
+      const prefaceDocument = document.querySelector('.p-novel__text--preface');
+      const mainContentDocument = document.querySelector(
+        '.js-novel-text:not(.p-novel__text--preface):not(.p-novel__text--afterword)',
+      );
+      const afterwordDocument = document.querySelector('.p-novel__text--afterword');
+      // Convert to markdown with turndown
+      const turndown = new TurndownService();
+      const preface = turndown.turndown(prefaceDocument?.innerHTML ?? '');
+      const mainContent = turndown.turndown(mainContentDocument?.innerHTML ?? '');
+      const afterword = turndown.turndown(afterwordDocument?.innerHTML ?? '');
 
       if (!title || !mainContent) {
         return res.status(400).json({
@@ -79,9 +79,13 @@ export default async function handler(
           .json({ error: 'Could not extract content from the webpage' });
       }
 
+      // Convert to markdown with turndown
+      const turndown = new TurndownService();
+      const content = turndown.turndown(article.content ?? '');
+
       return res.status(200).json({
         title: article.title,
-        content: article.textContent,
+        content,
         excerpt: article.excerpt,
       });
     }
