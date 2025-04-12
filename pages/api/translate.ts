@@ -32,7 +32,7 @@ async function makeTranslationRequest(
       model,
       messages,
       temperature,
-      max_tokens: 8000,
+      max_tokens: serverConfig.maxTranslationOutputTokens,
       ...(model.includes('gemini')
         ? {
             safetySettings: [

@@ -118,6 +118,7 @@ ${translatedContent}
           { role: 'user', content: userPrompt },
         ],
         temperature: serverConfig.qualityCheckTemperature,
+        max_tokens: serverConfig.maxQualityCheckOutputTokens,
         response_format: {
           type: 'json_schema',
           json_schema: {

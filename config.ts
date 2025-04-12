@@ -10,6 +10,8 @@ export const serverConfig = {
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   maxTokens: Number(process.env.MAX_TOKENS || '16000'),
   tokenizerModel: process.env.TOKENIZER_MODEL || 'Xenova/gpt-4o',
+  maxTranslationOutputTokens: Number(process.env.MAX_TRANSLATION_OUTPUT_TOKENS || '8000'),
+  maxQualityCheckOutputTokens: Number(process.env.MAX_QUALITY_CHECK_OUTPUT_TOKENS || process.env.MAX_TRANSLATION_OUTPUT_TOKENS || '8000'),
 };
 
 // Type definitions
