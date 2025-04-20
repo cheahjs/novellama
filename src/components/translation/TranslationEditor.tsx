@@ -9,7 +9,7 @@ import {
   FiPlayCircle,
   FiCloudLightning,
 } from 'react-icons/fi';
-import { QualityCheckResponse, TranslationChapter, TranslationResponse } from '@/types';
+import { QualityCheckResponse, TranslationChapter, TranslationResponse, AppearanceSettings } from '@/types';
 import LiveTokenCounter from '@/components/info/LiveTokenCounter';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -42,6 +42,7 @@ interface TranslationEditorProps {
   novelSourceUrl?: string;
   nextChapterNumber?: number;
   totalChapters?: number;
+  appearanceSettings?: AppearanceSettings;
 }
 
 const TranslationEditor: React.FC<TranslationEditorProps> = ({
@@ -57,6 +58,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   novelSourceUrl,
   nextChapterNumber,
   totalChapters,
+  appearanceSettings,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [sourceContent, setSourceContent] = useState<string>('');
@@ -216,10 +218,18 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     }
   };
 
+  // Define default styles or use provided settings
+  const editorStyle: React.CSSProperties = {
+    fontSize: `${appearanceSettings?.fontSize || 16}px`,
+    fontFamily: appearanceSettings?.fontFamily || 'sans-serif',
+  };
+
+  const marginClass = `p-${appearanceSettings?.margin || 4}`;
+
   return (
     <div className="mt-6 space-y-4">
       {displayedChapter && !isRetranslating ? (
-        <div className="rounded-lg border p-4">
+        <div className={`rounded-lg border ${marginClass}`} style={{ borderColor: '#374151' /* gray-700 */ }}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
               {/* Only show quality indicator if we have a current chapter with quality data */}
@@ -304,7 +314,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           )}
 
           {!showSource && !isEditing && displayedChapter && (
-            <div className="prose prose-invert translation-content max-w-none">
+            <div className="prose prose-invert max-w-none translation-content" style={{ fontSize: editorStyle.fontSize, fontFamily: editorStyle.fontFamily }}>
               <ReactMarkdown remarkPlugins={[remarkBreaks]}>
                 {displayedChapter.translatedContent}
               </ReactMarkdown>

@@ -93,3 +93,9 @@ export interface QualityCheckResponse {
   score: number;
   feedback: string;
 }
+
+export interface AppearanceSettings {
+  fontSize?: number; // e.g., 16
+  fontFamily?: string; // e.g., 'Arial, sans-serif'
+  margin?: number; // e.g., 4 (representing p-4 or similar)
+}

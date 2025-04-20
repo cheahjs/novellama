@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { FiArrowLeft, FiSettings } from 'react-icons/fi';
-import { Novel, TranslationChapter } from '@/types';
+import { FiArrowLeft, FiSettings, FiSliders } from 'react-icons/fi';
+import { Novel, TranslationChapter, AppearanceSettings } from '@/types';
 import {
   getNovel,
   saveNovel,
@@ -209,6 +209,35 @@ async function scrapeChapter(novelUrl: string, chapterNumber: number) {
   return { title: data.title, content: data.content };
 }
 
+const LOCAL_STORAGE_KEY = 'novelLamaAppearanceSettings';
+
+// Utility to safely get settings from localStorage
+const loadAppearanceSettings = (): AppearanceSettings => {
+  try {
+    const storedSettings = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (storedSettings) {
+      return JSON.parse(storedSettings) as AppearanceSettings;
+    }
+  } catch (error) {
+    console.error('Error loading appearance settings from localStorage:', error);
+  }
+  // Return defaults if nothing stored or error occurred
+  return {
+    fontSize: 16,
+    fontFamily: 'sans-serif',
+    margin: 4,
+  };
+};
+
+// Utility to safely save settings to localStorage
+const saveAppearanceSettings = (settings: AppearanceSettings) => {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(settings));
+  } catch (error) {
+    console.error('Error saving appearance settings to localStorage:', error);
+  }
+};
+
 export default function TranslatePage() {
   const router = useRouter();
   const { id, chapter } = router.query;
@@ -220,6 +249,8 @@ export default function TranslatePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [isBatchTranslating, setIsBatchTranslating] = useState(false);
   const [shouldCancelBatch, setShouldCancelBatch] = useState(false);
+  const [showAppearanceSettings, setShowAppearanceSettings] = useState(false);
+  const [liveAppearanceSettings, setLiveAppearanceSettings] = useState<AppearanceSettings>(loadAppearanceSettings());
   const [chapterMetadata, setChapterMetadata] = useState<
     Array<{ number: number; title: string }>
   >([]);
@@ -293,6 +324,7 @@ export default function TranslatePage() {
     async (novelId?: string) => {
       if (!novelId) return;
 
+      setIsLoadingNovel(true);
       try {
         // First load the novel metadata
         const loadedNovel = await getNovel(novelId);
@@ -344,6 +376,20 @@ export default function TranslatePage() {
       loadNovel(id);
     }
   }, [id, loadNovel]);
+
+  // Effect to load settings from localStorage on initial mount
+  useEffect(() => {
+    setLiveAppearanceSettings(loadAppearanceSettings());
+  }, []);
+
+  // Function to update state and save to localStorage
+  const handleAppearanceChange = (newSettings: Partial<AppearanceSettings>) => {
+    setLiveAppearanceSettings(prev => {
+      const updatedSettings = { ...prev, ...newSettings };
+      saveAppearanceSettings(updatedSettings); // Save instantly
+      return updatedSettings;
+    });
+  };
 
   const handleSaveEdit = async (title: string, translatedContent: string) => {
     if (!novel || !currentChapter) return;
@@ -823,15 +869,72 @@ export default function TranslatePage() {
             <span>Back to Novels</span>
           </Link>
 
-          <h1 className="text-xl font-bold">{novel.title}</h1>
-
-          <button
-            onClick={() => setShowSettings(true)}
-            className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-gray-300"
-          >
-            <FiSettings className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAppearanceSettings(!showAppearanceSettings)}
+              className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-gray-300"
+              title="Appearance Settings"
+            >
+              <FiSliders className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-gray-300"
+              title="Novel Settings"
+            >
+              <FiSettings className="h-5 w-5" />
+            </button>
+          </div>
         </div>
+
+        {/* Appearance Settings Panel */}
+        {showAppearanceSettings && (
+          <div className="mb-4 rounded-lg border border-gray-700 bg-gray-800 p-4">
+            <h3 className="mb-3 text-lg font-semibold">Appearance Settings</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Font Size (px)</label>
+                <input
+                  type="number"
+                  value={liveAppearanceSettings.fontSize}
+                  onChange={(e) => {
+                    handleAppearanceChange({ fontSize: parseInt(e.target.value) || 16 });
+                  }}
+                  className="w-full rounded border bg-gray-700 p-2 text-white"
+                  min="10"
+                  max="32"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Margin (spacing units)</label>
+                <input
+                  type="number"
+                  value={liveAppearanceSettings.margin}
+                  onChange={(e) => {
+                    handleAppearanceChange({ margin: parseInt(e.target.value) || 4 });
+                  }}
+                  className="w-full rounded border bg-gray-700 p-2 text-white"
+                  min="0"
+                  max="16"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Font Family</label>
+                <select
+                  value={liveAppearanceSettings.fontFamily}
+                  onChange={(e) => {
+                    handleAppearanceChange({ fontFamily: e.target.value });
+                  }}
+                  className="w-full rounded border bg-gray-700 p-2 text-white"
+                >
+                  <option value="sans-serif">Sans Serif</option>
+                  <option value="serif">Serif</option>
+                  <option value="monospace">Monospace</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         <ChapterNavigation
           currentChapter={currentChapterNumber}
@@ -858,6 +961,7 @@ export default function TranslatePage() {
           novelSourceUrl={novel.sourceUrl}
           nextChapterNumber={chapterMetadata.length + 1}
           totalChapters={chapterMetadata.length}
+          appearanceSettings={liveAppearanceSettings}
         />
 
         <ChapterNavigation
