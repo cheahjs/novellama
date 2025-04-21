@@ -314,7 +314,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           )}
 
           {!showSource && !isEditing && displayedChapter && (
-            <div className="prose prose-invert max-w-none translation-content break-all" style={{ fontSize: editorStyle.fontSize, fontFamily: editorStyle.fontFamily }}>
+            <div className="prose prose-invert max-w-none translation-content" style={{ fontSize: editorStyle.fontSize, fontFamily: editorStyle.fontFamily, wordBreak: 'break-word' }}>
               <ReactMarkdown remarkPlugins={[remarkBreaks]}>
                 {displayedChapter.translatedContent}
               </ReactMarkdown>
