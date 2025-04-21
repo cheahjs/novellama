@@ -17,6 +17,7 @@ import TranslationEditor from '@/components/translation/TranslationEditor';
 import ChapterNavigation from '@/components/translation/ChapterNavigation';
 import NovelSettings from '@/components/novel/NovelSettings';
 import { toast, Toaster } from 'react-hot-toast';
+import NProgress from 'nprogress';
 
 interface TranslationResult {
   translatedContent: string;
@@ -245,7 +246,6 @@ export default function TranslatePage() {
   const [novel, setNovel] = useState<Novel | null>(null);
   const [currentChapterNumber, setCurrentChapterNumber] = useState(1);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [isLoadingNovel, setIsLoadingNovel] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isBatchTranslating, setIsBatchTranslating] = useState(false);
   const [shouldCancelBatch, setShouldCancelBatch] = useState(false);
@@ -324,7 +324,7 @@ export default function TranslatePage() {
     async (novelId?: string) => {
       if (!novelId) return;
 
-      setIsLoadingNovel(true);
+      NProgress.start();
       try {
         // First load the novel metadata
         const loadedNovel = await getNovel(novelId);
@@ -365,7 +365,7 @@ export default function TranslatePage() {
         toast.error('Failed to load novel');
         router.push('/');
       } finally {
-        setIsLoadingNovel(false);
+        NProgress.done();
       }
     },
     [router, chapter, loadChapterMetadata, loadChapters],
@@ -752,24 +752,33 @@ export default function TranslatePage() {
   const handleNavigate = async (chapterNumber: number) => {
     if (!novel) return;
 
-    // Update URL without reloading
-    router.push(
-      {
-        pathname: router.pathname,
-        query: { ...router.query, chapter: chapterNumber },
-      },
-      undefined,
-      { shallow: true },
-    );
+    NProgress.start();
 
-    // Load chapters after URL update
-    await loadChapters(novel.id, chapterNumber - 1);
+    try {
+      // Update URL without reloading
+      router.push(
+        {
+          pathname: router.pathname,
+          query: { ...router.query, chapter: chapterNumber },
+        },
+        undefined,
+        { shallow: true },
+      );
 
-    // Only update current chapter number after new chapter is loaded
-    setCurrentChapterNumber(chapterNumber);
+      // Load chapters after URL update
+      await loadChapters(novel.id, chapterNumber - 1);
 
-    // Scroll to top after navigation completes
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Only update current chapter number after new chapter is loaded
+      setCurrentChapterNumber(chapterNumber);
+
+      // Scroll to top after navigation completes
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      console.error('Failed to navigate to chapter:', error);
+      toast.error('Failed to load chapter');
+    } finally {
+      NProgress.done();
+    }
   };
 
   const handleDeleteLatest = async () => {
@@ -830,14 +839,6 @@ export default function TranslatePage() {
       : null;
 
   // Show loading state or not found message
-  if (isLoadingNovel) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <p>Loading novel...</p>
-      </div>
-    );
-  }
-
   if (!novel) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">

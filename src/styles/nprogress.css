@@ -1,0 +1,23 @@
+/* Make clicks pass-through */
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  background: #3b82f6; /* Tailwind blue-500 */
+  position: fixed;
+  z-index: 1031;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+}
+
+/* Remove these features */
+#nprogress .peg {
+  display: none;
+}
+
+#nprogress .spinner {
+  display: none;
+} 
