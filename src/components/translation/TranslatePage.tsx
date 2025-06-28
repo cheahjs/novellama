@@ -214,6 +214,13 @@ const LOCAL_STORAGE_KEY = 'novelLamaAppearanceSettings';
 
 // Utility to safely get settings from localStorage
 const loadAppearanceSettings = (): AppearanceSettings => {
+  if (typeof window === 'undefined') {
+    return {
+      fontSize: 16,
+      fontFamily: 'sans-serif',
+      margin: 4,
+    };
+  }
   try {
     const storedSettings = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (storedSettings) {
@@ -232,6 +239,9 @@ const loadAppearanceSettings = (): AppearanceSettings => {
 
 // Utility to safely save settings to localStorage
 const saveAppearanceSettings = (settings: AppearanceSettings) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(settings));
   } catch (error) {
@@ -243,12 +253,31 @@ export default function TranslatePage() {
   const router = useRouter();
   const { id, chapter } = router.query;
 
+  
   const [novel, setNovel] = useState<Novel | null>(null);
   const [currentChapterNumber, setCurrentChapterNumber] = useState(1);
   const [isTranslating, setIsTranslating] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isBatchTranslating, setIsBatchTranslating] = useState(false);
   const [shouldCancelBatch, setShouldCancelBatch] = useState(false);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (isBatchTranslating) {
+      if (!audioElement) {
+        const audio = new Audio('/silent.wav');
+        audio.loop = true;
+        setAudioElement(audio);
+        audio.play().catch(e => console.error("Error playing audio:", e));
+      } else {
+        audioElement.play().catch(e => console.error("Error playing audio:", e));
+      }
+    } else {
+      if (audioElement) {
+        audioElement.pause();
+      }
+    }
+  }, [isBatchTranslating, audioElement]);
   const [showAppearanceSettings, setShowAppearanceSettings] = useState(false);
   const [liveAppearanceSettings, setLiveAppearanceSettings] = useState<AppearanceSettings>(loadAppearanceSettings());
   const [chapterMetadata, setChapterMetadata] = useState<
