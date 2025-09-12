@@ -63,12 +63,13 @@ export async function truncateContext(
     system: number;
     task: number;
     translation: number;
+    total: number;
   };
 }> {
   if (messages.length === 0)
     return {
       messages: [],
-      tokenCounts: { system: 0, task: 0, translation: 0 },
+      tokenCounts: { system: 0, task: 0, translation: 0, total: 0 },
     };
 
   // Start with system and task messages
@@ -140,6 +141,7 @@ export async function truncateContext(
       system: systemTokenCount,
       task: taskTokenCount,
       translation: bestTokenCount - systemTokenCount - taskTokenCount,
+      total: bestTokenCount,
     },
   };
 }
