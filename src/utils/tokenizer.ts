@@ -111,7 +111,9 @@ export async function truncateContext(
     const pairCount = mid;
     const testMessages = [
       ...baseMessages,
-      ...translationMessages.slice(-pairCount * 2),
+      ...translationMessages.slice(
+        translationMessages.length - pairCount * 2,
+      ),
     ];
 
     const tokenCount = await countMessagesTokens(testMessages);
@@ -127,11 +129,19 @@ export async function truncateContext(
     }
   }
 
+  if (pairs > 0 && bestCount === 0) {
+    throw new Error(
+      `No translation messages fit within max tokens (system+task=${systemTokenCount + taskTokenCount}, max=${maxTokens})`,
+    );
+  }
+
   // Construct final result with the best fitting number of pairs
   const result = [
     baseMessages[0],
     baseMessages[1],
-    ...translationMessages.slice(-bestCount * 2),
+    ...translationMessages.slice(
+      translationMessages.length - bestCount * 2,
+    ),
     baseMessages[2],
   ];
 
