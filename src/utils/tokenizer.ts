@@ -100,32 +100,20 @@ export async function truncateContext(
   );
   const pairs = translationMessages.length / 2;
 
-  // Binary search for the maximum number of pairs that fit
-  let left = 0;
-  let right = pairs;
+  // Greedily add translation pairs from the end until we hit the limit
   let bestCount = 0;
+  let translationTokens = 0;
   let bestTokenCount = systemTokenCount + taskTokenCount;
-
-  while (left <= right) {
-    const mid = Math.floor((left + right) / 2);
-    const pairCount = mid;
-    const testMessages = [
-      ...baseMessages,
-      ...translationMessages.slice(
-        translationMessages.length - pairCount * 2,
-      ),
-    ];
-
-    const tokenCount = await countMessagesTokens(testMessages);
-
-    if (tokenCount <= maxTokens) {
-      if (pairCount > bestCount) {
-        bestCount = pairCount;
-        bestTokenCount = tokenCount;
-      }
-      left = mid + 1;
+  for (let i = translationMessages.length - 2; i >= 0; i -= 2) {
+    const pair = [translationMessages[i], translationMessages[i + 1]];
+    const pairTokens = await countMessagesTokens(pair);
+    const projected = systemTokenCount + taskTokenCount + translationTokens + pairTokens;
+    if (projected <= maxTokens) {
+      translationTokens += pairTokens;
+      bestCount += 1;
+      bestTokenCount = projected;
     } else {
-      right = mid - 1;
+      break;
     }
   }
 
