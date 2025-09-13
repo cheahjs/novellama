@@ -450,16 +450,25 @@ export default async function handler(
 }
 
 function postProcessTranslation(translation: string) {
+  let output = translation;
   // Remove any XML like tags including closing tags
-  translation = translation.replace(/<\/?[^>]*>/g, '');
-  // Remove any markdown code blocks using backticks
-  translation = translation.replace(/```[\s\S]*?```/g, '');
-  // Trim whitespace
-  translation = translation.trim();
-  // Check if there's a second title header (eg # Chapter 2), and remove all content after it
-  const secondHeaderIndex = translation.indexOf('\n# ');
-  if (secondHeaderIndex !== -1) {
-    translation = translation.substring(0, secondHeaderIndex);
+  if (serverConfig.postprocessRemoveXmlTags) {
+    output = output.replace(/<\/?[^>]*>/g, '');
   }
-  return translation;
+  // Remove any markdown code blocks using backticks
+  if (serverConfig.postprocessRemoveCodeBlocks) {
+    output = output.replace(/```[\s\S]*?```/g, '');
+  }
+  // Trim whitespace
+  if (serverConfig.postprocessTrimWhitespace) {
+    output = output.trim();
+  }
+  // Check if there's a second title header (eg # Chapter 2), and remove all content after it
+  if (serverConfig.postprocessTruncateAfterSecondHeader) {
+    const secondHeaderIndex = output.indexOf('\n# ');
+    if (secondHeaderIndex !== -1) {
+      output = output.substring(0, secondHeaderIndex);
+    }
+  }
+  return output;
 }
