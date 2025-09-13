@@ -12,6 +12,9 @@ export const serverConfig = {
   tokenizerModel: process.env.TOKENIZER_MODEL || 'Xenova/gpt-4o',
   maxTranslationOutputTokens: Number(process.env.MAX_TRANSLATION_OUTPUT_TOKENS || '8000'),
   maxQualityCheckOutputTokens: Number(process.env.MAX_QUALITY_CHECK_OUTPUT_TOKENS || process.env.MAX_TRANSLATION_OUTPUT_TOKENS || '8000'),
+  translationUseStreaming:
+    (process.env.TRANSLATION_USE_STREAMING || '').toLowerCase() === 'true' ||
+    process.env.TRANSLATION_USE_STREAMING === '1',
 };
 
 // Type definitions

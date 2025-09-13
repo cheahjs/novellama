@@ -70,6 +70,122 @@ async function makeTranslationRequest(
   return response;
 }
 
+async function makeStreamingTranslationRequest(
+  url: string,
+  messages: ChatMessage[],
+  model: string,
+  temperature: number,
+  apiKey: string,
+): Promise<{
+  content: string;
+  usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
+  finishReason: string | null;
+  headers: Record<string, string>;
+}> {
+  const response = await axios.post(
+    url,
+    {
+      model,
+      messages,
+      temperature,
+      max_tokens: serverConfig.maxTranslationOutputTokens,
+      stream: true,
+      stream_options: { include_usage: true },
+      ...(model.includes('gemini')
+        ? {
+            safetySettings: [
+              {
+                category: 'HARM_CATEGORY_HARASSMENT',
+                threshold: 'BLOCK_NONE',
+              },
+              {
+                category: 'HARM_CATEGORY_HATE_SPEECH',
+                threshold: 'BLOCK_NONE',
+              },
+              {
+                category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                threshold: 'BLOCK_NONE',
+              },
+              {
+                category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                threshold: 'BLOCK_NONE',
+              },
+              {
+                category: 'HARM_CATEGORY_CIVIC_INTEGRITY',
+                threshold: 'BLOCK_NONE',
+              },
+            ],
+          }
+        : {}),
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      responseType: 'stream',
+    },
+  );
+
+  const stream: NodeJS.ReadableStream = response.data;
+  return await new Promise((resolve, reject) => {
+    let buffer = '';
+    let content = '';
+    let finishReason: string | null = null;
+    let usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
+
+    const handleEvent = (eventBlock: string) => {
+      // Each event block may contain multiple lines; parse lines starting with `data:`
+      const lines = eventBlock.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const dataStr = trimmed.slice('data:'.length).trim();
+        if (!dataStr || dataStr === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(dataStr);
+          const choice = parsed.choices?.[0];
+          const deltaContent: string | undefined = choice?.delta?.content;
+          if (typeof deltaContent === 'string') {
+            content += deltaContent;
+          }
+          if (choice && choice.finish_reason) {
+            finishReason = choice.finish_reason;
+          }
+          if (parsed.usage) {
+            usage = parsed.usage;
+          }
+        } catch {
+          // Ignore JSON parse errors for non-JSON lines
+        }
+      }
+    };
+
+    stream.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString('utf8');
+      // SSE events are separated by double newlines
+      let idx: number;
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const eventBlock = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        handleEvent(eventBlock);
+      }
+    });
+
+    stream.on('end', () => {
+      // Handle any remaining buffer
+      if (buffer.length > 0) {
+        handleEvent(buffer);
+      }
+      resolve({ content, usage, finishReason, headers: response.headers as Record<string, string> });
+    });
+
+    stream.on('error', (err: unknown) => {
+      reject(err);
+    });
+  });
+}
+
 async function constructMessages(
   novel: NovelWithChapters,
   request: MinimalTranslationRequest,
@@ -235,38 +351,71 @@ export default async function handler(
       `Making translation request with ${messages.length} messages (model: ${model}, temperature: ${temperature})`,
     );
 
-    // First attempt
-    let apiResponse = await makeTranslationRequest(
-      url,
-      messages,
-      model,
-      temperature,
-      apiKey,
-    );
+    let translation = '';
+    let tokenUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined = undefined;
+    let finishReason: string | null = null;
 
-    // Check if we hit the length limit and retry once if needed
-    if (apiResponse.data.choices[0].finish_reason === 'length') {
-      console.log('Hit length limit, retrying with the same parameters...');
-      apiResponse = await makeTranslationRequest(
+    if (serverConfig.translationUseStreaming) {
+      // Streaming attempt
+      let streamResult = await makeStreamingTranslationRequest(
         url,
         messages,
         model,
         temperature,
         apiKey,
       );
-    }
+      translation = streamResult.content;
+      tokenUsage = streamResult.usage;
+      finishReason = streamResult.finishReason;
+      if (finishReason === 'length') {
+        console.log('Hit length limit (stream), retrying with the same parameters...');
+        streamResult = await makeStreamingTranslationRequest(
+          url,
+          messages,
+          model,
+          temperature,
+          apiKey,
+        );
+        translation = streamResult.content;
+        tokenUsage = streamResult.usage;
+        finishReason = streamResult.finishReason;
+      }
+      console.log('translation response (stream)', {
+        usage: tokenUsage,
+        finishReason,
+      });
+    } else {
+      // Non-streaming attempt
+      let apiResponse = await makeTranslationRequest(
+        url,
+        messages,
+        model,
+        temperature,
+        apiKey,
+      );
 
-    // Extract translation from the response
-    const translation = apiResponse.data.choices[0].message.content;
-    // Extract token usage from the response
-    const tokenUsage = apiResponse.data.usage;
-    console.log('translation response', {
-      responseHeaders: apiResponse.headers,
-      responseBody: apiResponse.data,
-      usage: tokenUsage,
-      finishReason: apiResponse.data.choices[0].finish_reason,
-      safetyResults: JSON.stringify(apiResponse.data.vertex_ai_safety_results),
-    });
+      if (apiResponse.data.choices[0].finish_reason === 'length') {
+        console.log('Hit length limit, retrying with the same parameters...');
+        apiResponse = await makeTranslationRequest(
+          url,
+          messages,
+          model,
+          temperature,
+          apiKey,
+        );
+      }
+
+      translation = apiResponse.data.choices[0].message.content;
+      tokenUsage = apiResponse.data.usage;
+      finishReason = apiResponse.data.choices[0].finish_reason;
+      console.log('translation response', {
+        responseHeaders: apiResponse.headers,
+        responseBody: apiResponse.data,
+        usage: tokenUsage,
+        finishReason,
+        safetyResults: JSON.stringify(apiResponse.data.vertex_ai_safety_results),
+      });
+    }
 
     // Post process the translation to remove any known issues
     const postProcessedTranslation = postProcessTranslation(translation);
@@ -274,7 +423,7 @@ export default async function handler(
     // Return the translation along with the novel's language settings for quality check
     return res.status(200).json({
       translation: postProcessedTranslation,
-      tokenUsage,
+      tokenUsage: tokenUsage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       sourceLanguage: novel.sourceLanguage,
       targetLanguage: novel.targetLanguage,
       tokenCounts: {
@@ -282,7 +431,7 @@ export default async function handler(
         task: tokenCounts.task,
         translation: tokenCounts.translation,
       },
-      finishReason: apiResponse.data.choices[0].finish_reason,
+      finishReason,
     });
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
