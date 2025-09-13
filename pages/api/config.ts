@@ -4,12 +4,16 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 export interface ClientConfig {
   tokenizerModel: string;
   maxTokens: number;
+  streamTranslations: boolean;
 }
 
 // Default client configuration
 const clientConfig: ClientConfig = {
   tokenizerModel: process.env.TOKENIZER_MODEL || 'Xenova/gpt-4o',
   maxTokens: Number(process.env.MAX_TOKENS || '16000'),
+  streamTranslations:
+    (process.env.TRANSLATION_USE_STREAMING || '').toLowerCase() === 'true' ||
+    process.env.TRANSLATION_USE_STREAMING === '1',
 };
 
 export default async function handler(

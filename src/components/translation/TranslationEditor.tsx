@@ -16,6 +16,8 @@ import remarkBreaks from 'remark-breaks';
 import TokenUsage from '@/components/info/TokenUsage';
 import QualityIndicator from '@/components/info/QualityIndicator';
 import { toast } from 'react-hot-toast';
+import { useConfig } from '@/hooks/useConfig';
+import type { StreamTranslateHandlers } from '@/services/api';
 
 interface TranslationEditorProps {
   chapter: TranslationChapter | null;
@@ -28,6 +30,17 @@ interface TranslationEditorProps {
       qualityFeedback?: string;
       useImprovementFeedback?: boolean;
     },
+  ) => Promise<TranslationResponse | undefined>;
+  onTranslateStream?: (
+    sourceContent: string,
+    useAutoRetry: boolean,
+    maxAttempts: number,
+    previousTranslationData: {
+      previousTranslation?: string;
+      qualityFeedback?: string;
+      useImprovementFeedback?: boolean;
+    } | undefined,
+    handlers: StreamTranslateHandlers,
   ) => Promise<TranslationResponse | undefined>;
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
   onQualityCheck?: (sourceContent: string, translatedContent: string) => Promise<QualityCheckResponse | undefined>;
@@ -54,6 +67,7 @@ interface TranslationEditorProps {
 const TranslationEditor: React.FC<TranslationEditorProps> = ({
   chapter,
   onTranslate,
+  onTranslateStream,
   onSaveEdit,
   onQualityCheck,
   isTranslating,
@@ -93,6 +107,11 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [endChapter, setEndChapter] = useState<number>(1);
   const [showBatchRetranslate, setShowBatchRetranslate] =
     useState<boolean>(false);
+  const { config } = useConfig();
+  const streamingEnabled = Boolean(config?.streamTranslations);
+  const [streamReasoning, setStreamReasoning] = useState<string>('');
+  const [streamContent, setStreamContent] = useState<string>('');
+  const [hasShownContent, setHasShownContent] = useState<boolean>(false);
 
   useEffect(() => {
     // Reset states when chapter changes or when moving to a new chapter
@@ -141,12 +160,38 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               }
             : undefined;
 
-        const result = await onTranslate(
-          sourceContent,
-          useAutoRetry,
-          maxAttempts,
-          previousTranslationData,
-        );
+        let result: TranslationResponse | undefined;
+        setStreamReasoning('');
+        setStreamContent('');
+        setHasShownContent(false);
+        if (streamingEnabled && onTranslateStream && !useAutoRetry) {
+          const handlers: StreamTranslateHandlers = {
+            onReasoningDelta: (text) => {
+              if (!hasShownContent) setStreamReasoning((prev) => prev + text);
+            },
+            onContentDelta: (text) => {
+              if (!hasShownContent) {
+                setHasShownContent(true);
+                setStreamReasoning('');
+              }
+              setStreamContent((prev) => prev + text);
+            },
+          };
+          result = await onTranslateStream(
+            sourceContent,
+            useAutoRetry,
+            maxAttempts,
+            previousTranslationData,
+            handlers,
+          );
+        } else {
+          result = await onTranslate(
+            sourceContent,
+            useAutoRetry,
+            maxAttempts,
+            previousTranslationData,
+          );
+        }
 
         if (result) {
           setLastTokenUsage(result.tokenUsage);
@@ -158,6 +203,9 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         setIsRetranslating(false);
         setIsAutoRetrying(false);
         setAutoRetryAttempt(0);
+        setStreamReasoning('');
+        setStreamContent('');
+        setHasShownContent(false);
       }
     }
   };
@@ -300,6 +348,26 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               </button>
             </div>
           </div>
+
+          {(streamReasoning || streamContent) && (
+            <div className="rounded-lg border border-gray-700 bg-gray-800 p-3">
+              {!hasShownContent && streamReasoning && (
+                <div className="text-sm text-gray-300">
+                  <div className="mb-1 font-medium text-gray-400">Thinking...</div>
+                  <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                    {streamReasoning}
+                  </ReactMarkdown>
+                </div>
+              )}
+              {streamContent && (
+                <div className="prose prose-invert max-w-none" style={{ fontSize: editorStyle.fontSize, fontFamily: editorStyle.fontFamily, wordBreak: 'break-word' }}>
+                  <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                    {streamContent}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+          )}
 
           {showSource && displayedChapter && (
             <div className="relative mb-4">

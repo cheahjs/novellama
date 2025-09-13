@@ -12,7 +12,7 @@ import {
   updateChapter,
   getChapterTOC,
 } from '@/services/storage';
-import { checkTranslationQuality, translateContent } from '@/services/api';
+import { checkTranslationQuality, translateContent, streamTranslateContent, type StreamTranslateHandlers } from '@/services/api';
 import TranslationEditor from '@/components/translation/TranslationEditor';
 import ChapterNavigation from '@/components/translation/ChapterNavigation';
 import NovelSettings from '@/components/novel/NovelSettings';
@@ -547,6 +547,97 @@ export default function TranslatePage() {
     }
   };
 
+  const handleTranslateStream = async (
+    sourceContent: string,
+    useAutoRetry: boolean,
+    maxAttempts: number,
+    previousTranslationData: {
+      previousTranslation?: string;
+      qualityFeedback?: string;
+      useImprovementFeedback?: boolean;
+    } | undefined,
+    handlers: StreamTranslateHandlers,
+  ) => {
+    if (!novel) return;
+
+    // Fallback to non-streaming if auto-retry is enabled
+    if (useAutoRetry) {
+      return handleTranslate(sourceContent, useAutoRetry, maxAttempts, previousTranslationData);
+    }
+
+    setIsTranslating(true);
+    const toastId = toast.loading('Translating (streaming)...', { duration: Infinity });
+
+    try {
+      const result = await streamTranslateContent(
+        {
+          sourceContent,
+          novelId: novel.id,
+          currentChapterId: currentChapter?.id,
+          ...previousTranslationData,
+        },
+        handlers,
+      );
+
+      const translatedLines = result.translatedContent.split('\n');
+      const title = translatedLines[0].startsWith('# ')
+        ? translatedLines[0].substring(2)
+        : `Chapter ${currentChapter?.number ?? currentChapterNumber}`;
+
+      toast.loading('Saving translation...', { id: toastId });
+
+      const updatedChapter: TranslationChapter = currentChapter
+        ? {
+            ...currentChapter,
+            title,
+            sourceContent,
+            translatedContent: result.translatedContent,
+            updatedAt: Date.now(),
+          }
+        : {
+            id: `chapter_${Date.now()}`,
+            title,
+            sourceContent,
+            translatedContent: result.translatedContent,
+            number: currentChapterNumber,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+
+      // Perform quality check
+      const qualityCheckResponse = await checkTranslationQuality({
+        sourceContent,
+        translatedContent: result.translatedContent,
+        sourceLanguage: novel.sourceLanguage,
+        targetLanguage: novel.targetLanguage,
+      });
+      updatedChapter.qualityCheck = qualityCheckResponse;
+
+      await saveChapter({
+        novel,
+        chapter: updatedChapter,
+        setLoadedChapters,
+        setChapterMetadata,
+        setNovel,
+      });
+
+      toast.dismiss(toastId);
+      toast.success('Translation complete');
+      return {
+        translatedContent: result.translatedContent,
+        tokenUsage: result.tokenUsage,
+        qualityCheck: qualityCheckResponse,
+      };
+    } catch (error) {
+      console.error('Streaming translation error:', error);
+      toast.dismiss(toastId);
+      toast.error('Failed to translate content');
+      throw error;
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const handleBatchTranslate = async (
     count: number,
     useAutoRetry: boolean,
@@ -994,6 +1085,7 @@ export default function TranslatePage() {
           chapter={currentChapter}
           onSaveEdit={handleSaveEdit}
           onTranslate={handleTranslate}
+          onTranslateStream={handleTranslateStream}
           onQualityCheck={handleQualityCheck}
           isTranslating={isTranslating}
           isBatchTranslating={isBatchTranslating}
