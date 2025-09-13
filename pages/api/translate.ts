@@ -133,6 +133,7 @@ async function makeStreamingTranslationRequest(
     let content = '';
     let finishReason: string | null = null;
     let usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
+    let doneSeen = false;
 
     const handleEvent = (eventBlock: string) => {
       // Each event block may contain multiple lines; parse lines starting with `data:`
@@ -141,7 +142,11 @@ async function makeStreamingTranslationRequest(
         const trimmed = line.trim();
         if (!trimmed.startsWith('data:')) continue;
         const dataStr = trimmed.slice('data:'.length).trim();
-        if (!dataStr || dataStr === '[DONE]') continue;
+        if (!dataStr) continue;
+        if (dataStr === '[DONE]') {
+          doneSeen = true;
+          continue;
+        }
         try {
           const parsed = JSON.parse(dataStr);
           const choice = parsed.choices?.[0];
@@ -176,6 +181,9 @@ async function makeStreamingTranslationRequest(
       // Handle any remaining buffer
       if (buffer.length > 0) {
         handleEvent(buffer);
+      }
+      if (!doneSeen) {
+        return reject(new Error('Streaming response ended without [DONE] marker. Incomplete response.'));
       }
       resolve({ content, usage, finishReason, headers: response.headers as Record<string, string> });
     });
