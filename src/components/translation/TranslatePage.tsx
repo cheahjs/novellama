@@ -98,7 +98,7 @@ async function performTranslation({
 
       if (
         !bestResult ||
-        (result.qualityCheck?.score || 0) >
+        (result.qualityCheck?.score || 0) >=
           (bestResult.qualityCheck?.score || 0)
       ) {
         bestResult = result;
