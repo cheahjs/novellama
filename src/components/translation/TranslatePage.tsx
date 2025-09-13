@@ -73,11 +73,15 @@ async function performTranslation({
   try {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       if (toastId) {
+        const reason =
+          attempt === 0
+            ? 'initial attempt'
+            : bestResult?.qualityCheck && bestResult.qualityCheck.score !== undefined
+              ? `improving low score (${bestResult.qualityCheck.score})`
+              : 'previous attempt failed/low quality';
         lastToastId = toast.loading(
-          `Translation attempt ${attempt + 1}/${maxAttempts}...`,
-          {
-            duration: Infinity,
-          },
+          `Translation attempt ${attempt + 1}/${maxAttempts} — ${reason}`,
+          { duration: Infinity },
         );
       }
 
@@ -899,7 +903,7 @@ export default function TranslatePage() {
         </title>
       </Head>
 
-      <Toaster />
+      <Toaster position="top-right" />
 
       <div className="container mx-auto max-w-4xl px-4">
         <div className="flex items-center justify-between py-4">

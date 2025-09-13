@@ -118,3 +118,33 @@ export const getChapterTOC = async (
     return [];
   }
 };
+
+export const exportChapters = async (
+  novelId: string,
+  range?: { start?: number; end?: number },
+): Promise<Blob> => {
+  const params = new URLSearchParams();
+  if (range?.start) params.append('start', String(range.start));
+  if (range?.end) params.append('end', String(range.end));
+
+  const url = `/api/novels/${novelId}/chapters/export${
+    params.toString() ? `?${params.toString()}` : ''
+  }`;
+
+  const response = await axios.get(url, { responseType: 'blob' });
+  return response.data as Blob;
+};
+
+export const importChapters = async (
+  novelId: string,
+  content: string,
+  mode: 'merge' | 'replace' = 'merge',
+): Promise<{ imported: number; mode: string; range: { start: number | null; end: number | null } }> => {
+  const params = new URLSearchParams({ mode });
+  const response = await axios.post(
+    `/api/novels/${novelId}/chapters/import?${params.toString()}`,
+    { content },
+    { headers: { 'Content-Type': 'application/json' } },
+  );
+  return response.data;
+};

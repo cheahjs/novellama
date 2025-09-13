@@ -18,6 +18,12 @@ export function getDb(): Database.Database {
 function initializeDb() {
   const db = getDb();
 
+  // Improve concurrency and reduce lock contention
+  // - WAL allows concurrent readers during writes
+  // - busy_timeout makes readers wait for a short period instead of failing immediately
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA busy_timeout = 5000');
+
   // Create novels table
   db.exec(`
     CREATE TABLE IF NOT EXISTS novels (
