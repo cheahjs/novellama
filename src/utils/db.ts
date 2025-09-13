@@ -80,6 +80,28 @@ function initializeDb() {
     )
   `);
 
+  // Create chapter_revisions table to track historical changes to chapters
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chapter_revisions (
+      id TEXT PRIMARY KEY,
+      chapterId TEXT NOT NULL,
+      title TEXT NOT NULL,
+      sourceContent TEXT NOT NULL,
+      translatedContent TEXT NOT NULL,
+      qualityScore INTEGER,
+      qualityFeedback TEXT,
+      qualityIsGood BOOLEAN NOT NULL DEFAULT 0,
+      createdAt INTEGER NOT NULL,
+      FOREIGN KEY (chapterId) REFERENCES chapters(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Helpful index for fetching revisions in order for a chapter
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_chapter_revisions_chapterId_createdAt
+    ON chapter_revisions (chapterId, createdAt)
+  `);
+
   // Enable foreign key support
   db.exec('PRAGMA foreign_keys = ON');
 }

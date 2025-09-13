@@ -995,6 +995,7 @@ export default function TranslatePage() {
         />
 
         <TranslationEditor
+          novelId={novel.id}
           chapter={currentChapter}
           onSaveEdit={handleSaveEdit}
           onTranslate={handleTranslate}

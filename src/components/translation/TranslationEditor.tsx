@@ -8,8 +8,13 @@ import {
   FiSave,
   FiPlayCircle,
   FiCloudLightning,
+  FiList,
+  FiClock,
+  FiCopy,
+  FiTrash2,
+  FiX,
 } from 'react-icons/fi';
-import { QualityCheckResponse, TranslationChapter, TranslationResponse, AppearanceSettings } from '@/types';
+import { QualityCheckResponse, TranslationChapter, TranslationResponse, AppearanceSettings, ChapterRevision } from '@/types';
 import LiveTokenCounter from '@/components/info/LiveTokenCounter';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -18,6 +23,7 @@ import QualityIndicator from '@/components/info/QualityIndicator';
 import { toast } from 'react-hot-toast';
 
 interface TranslationEditorProps {
+  novelId: string;
   chapter: TranslationChapter | null;
   onTranslate: (
     sourceContent: string,
@@ -52,6 +58,7 @@ interface TranslationEditorProps {
 }
 
 const TranslationEditor: React.FC<TranslationEditorProps> = ({
+  novelId,
   chapter,
   onTranslate,
   onSaveEdit,
@@ -93,6 +100,23 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [endChapter, setEndChapter] = useState<number>(1);
   const [showBatchRetranslate, setShowBatchRetranslate] =
     useState<boolean>(false);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
+  const [isLoadingRevisions, setIsLoadingRevisions] = useState<boolean>(false);
+  const [revisions, setRevisions] = useState<ChapterRevision[]>([]);
+  const [expandedRevisionId, setExpandedRevisionId] = useState<string | null>(null);
+
+  const loadRevisions = async (novelIdParam: string, chapterNumber: number) => {
+    try {
+      setIsLoadingRevisions(true);
+      const { getChapterRevisions } = await import('@/services/storage');
+      const data = await getChapterRevisions(novelIdParam, chapterNumber);
+      setRevisions(data);
+    } catch (error) {
+      console.error('Failed to load revisions:', error);
+    } finally {
+      setIsLoadingRevisions(false);
+    }
+  };
 
   useEffect(() => {
     // Reset states when chapter changes or when moving to a new chapter
@@ -113,6 +137,11 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
       // Set the quality check from the current chapter if available
       setLastQualityCheck(chapter.qualityCheck ?? undefined);
+      if (showHistory) {
+        loadRevisions(novelId, chapter.number);
+      } else {
+        setRevisions([]);
+      }
     } else {
       // Only clear displayed chapter if we're explicitly moving to a new chapter
       // (i.e., when nextChapterNumber is provided)
@@ -124,6 +153,12 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
       }
     }
   }, [chapter, nextChapterNumber]);
+
+  useEffect(() => {
+    if (showHistory && displayedChapter) {
+      loadRevisions(novelId, displayedChapter.number);
+    }
+  }, [showHistory, displayedChapter, novelId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -248,6 +283,23 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               )}
             </div>
             <div className="flex items-center gap-2">
+              {displayedChapter && (
+                <button
+                  type="button"
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="flex items-center text-sm text-gray-500 hover:text-gray-700"
+                >
+                  {showHistory ? (
+                    <>
+                      <FiX className="mr-1" /> Hide history
+                    </>
+                  ) : (
+                    <>
+                      <FiList className="mr-1" /> History
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -300,6 +352,90 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
               </button>
             </div>
           </div>
+
+          {showHistory && displayedChapter && (
+            <div className="mb-4 rounded-lg border border-gray-700 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-sm text-gray-300">
+                  Revision history for chapter {displayedChapter.number}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {isLoadingRevisions
+                    ? 'Loading...'
+                    : `${revisions.length} revision${revisions.length === 1 ? '' : 's'}`}
+                </div>
+              </div>
+              <div className="space-y-2">
+                {revisions.length === 0 && !isLoadingRevisions && (
+                  <div className="text-sm text-gray-500">No revisions yet.</div>
+                )}
+                {revisions.map((rev) => (
+                  <div key={rev.id} className="rounded border border-gray-700 p-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-gray-300">
+                        <FiClock className="text-gray-500" />
+                        <span>{new Date(rev.createdAt).toLocaleString()}</span>
+                        {rev.qualityCheck && (
+                          <span className="ml-2 text-xs text-gray-400">Score: {rev.qualityCheck.score}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(rev.translatedContent);
+                              toast.success('Copied revision markdown');
+                            } catch (error) {
+                              console.error('Failed to copy revision:', error);
+                              toast.error('Failed to copy');
+                            }
+                          }}
+                          className="flex items-center text-xs text-gray-400 hover:text-gray-200"
+                        >
+                          <FiCopy className="mr-1" /> Copy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedRevisionId(expandedRevisionId === rev.id ? null : rev.id)}
+                          className="text-xs text-blue-400 hover:text-blue-300"
+                        >
+                          {expandedRevisionId === rev.id ? 'Hide' : 'View'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm('Delete this revision? This cannot be undone.')) return;
+                            try {
+                              const { deleteChapterRevision } = await import('@/services/storage');
+                              await deleteChapterRevision(novelId, displayedChapter.number, rev.id);
+                              setRevisions((prev) => prev.filter((r) => r.id !== rev.id));
+                              if (expandedRevisionId === rev.id) setExpandedRevisionId(null);
+                            } catch (error) {
+                              console.error('Failed to delete revision:', error);
+                            }
+                          }}
+                          className="flex items-center text-xs text-red-400 hover:text-red-300"
+                        >
+                          <FiTrash2 className="mr-1" /> Delete
+                        </button>
+                      </div>
+                    </div>
+                    {expandedRevisionId === rev.id && (
+                      <div className="mt-2 space-y-2">
+                        <div className="text-sm font-medium text-gray-200">{rev.title}</div>
+                        <div className="prose prose-invert max-w-none text-sm">
+                          <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                            {rev.translatedContent}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {showSource && displayedChapter && (
             <div className="relative mb-4">

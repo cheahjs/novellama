@@ -75,6 +75,27 @@ export async function saveChapter(
       );
     }
 
+    // Always record a revision snapshot of the chapter after save/update
+    const revisionId = nanoid();
+    db.prepare(
+      `
+      INSERT INTO chapter_revisions (
+        id, chapterId, title, sourceContent, translatedContent,
+        qualityScore, qualityFeedback, qualityIsGood, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    ).run(
+      revisionId,
+      chapterResult.id,
+      chapter.title,
+      chapter.sourceContent,
+      chapter.translatedContent,
+      chapter.qualityCheck?.score ?? null,
+      chapter.qualityCheck?.feedback ?? null,
+      chapter.qualityCheck ? (chapter.qualityCheck.isGoodQuality ? 1 : 0) : 0,
+      now,
+    );
+
     // Update novel's chapter count
     const chapterCount = db
       .prepare(
@@ -187,6 +208,100 @@ export async function getChapters(
   }
 
   return chapters;
+}
+
+// List all revisions for a specific chapter
+export async function getChapterRevisions(
+  novelId: string,
+  chapterNumber: number,
+): Promise<
+  Array<
+    {
+      id: string;
+      chapterId: string;
+      title: string;
+      sourceContent: string;
+      translatedContent: string;
+      createdAt: number;
+      qualityCheck?: { score: number; feedback: string; isGoodQuality: boolean };
+    }
+  >
+> {
+  const db = getDb();
+
+  const chapter = db
+    .prepare(
+      `
+      SELECT id FROM chapters WHERE novelId = ? AND number = ?
+    `,
+    )
+    .get(novelId, chapterNumber) as { id: string } | undefined;
+
+  if (!chapter) return [];
+
+  const revisions = db
+    .prepare(
+      `
+      SELECT id, chapterId, title, sourceContent, translatedContent,
+             qualityScore, qualityFeedback, qualityIsGood, createdAt
+      FROM chapter_revisions
+      WHERE chapterId = ?
+      ORDER BY createdAt DESC
+    `,
+    )
+    .all(chapter.id) as Array<{
+      id: string;
+      chapterId: string;
+      title: string;
+      sourceContent: string;
+      translatedContent: string;
+      qualityScore: number | null;
+      qualityFeedback: string | null;
+      qualityIsGood: number;
+      createdAt: number;
+    }>;
+
+  return revisions.map((r) => ({
+    id: r.id,
+    chapterId: r.chapterId,
+    title: r.title,
+    sourceContent: r.sourceContent,
+    translatedContent: r.translatedContent,
+    createdAt: r.createdAt,
+    qualityCheck:
+      r.qualityScore !== null || r.qualityFeedback !== null
+        ? {
+            score: r.qualityScore || 0,
+            feedback: r.qualityFeedback || '',
+            isGoodQuality: Boolean(r.qualityIsGood),
+          }
+        : undefined,
+  }));
+}
+
+// Delete a specific revision for a chapter
+export async function deleteChapterRevision(
+  novelId: string,
+  chapterNumber: number,
+  revisionId: string,
+): Promise<void> {
+  const db = getDb();
+
+  const chapter = db
+    .prepare(
+      `
+      SELECT id FROM chapters WHERE novelId = ? AND number = ?
+    `,
+    )
+    .get(novelId, chapterNumber) as { id: string } | undefined;
+
+  if (!chapter) return;
+
+  db.prepare(
+    `
+    DELETE FROM chapter_revisions WHERE id = ? AND chapterId = ?
+  `,
+  ).run(revisionId, chapter.id);
 }
 
 // Delete a chapter

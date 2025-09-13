@@ -94,6 +94,17 @@ export interface QualityCheckResponse {
   feedback: string;
 }
 
+// A persisted snapshot of a chapter at a point in time
+export interface ChapterRevision {
+  id: string;
+  chapterId: string;
+  title: string;
+  sourceContent: string;
+  translatedContent: string;
+  createdAt: number;
+  qualityCheck?: QualityCheckResponse;
+}
+
 export interface AppearanceSettings {
   fontSize?: number; // e.g., 16
   fontFamily?: string; // e.g., 'Arial, sans-serif'

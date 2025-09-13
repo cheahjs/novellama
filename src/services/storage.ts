@@ -1,4 +1,4 @@
-import { Novel, NovelWithChapters, TranslationChapter } from '@/types';
+import { Novel, NovelWithChapters, TranslationChapter, ChapterRevision } from '@/types';
 import axios from 'axios';
 
 export const saveNovel = async (
@@ -147,4 +147,34 @@ export const importChapters = async (
     { headers: { 'Content-Type': 'application/json' } },
   );
   return response.data;
+};
+
+export const getChapterRevisions = async (
+  novelId: string,
+  chapterNumber: number,
+): Promise<ChapterRevision[]> => {
+  try {
+    const response = await axios.get(
+      `/api/novels/${novelId}/chapters/${chapterNumber}/revisions`,
+    );
+    return response.data as ChapterRevision[];
+  } catch (error) {
+    console.error('Failed to get chapter revisions:', error);
+    return [];
+  }
+};
+
+export const deleteChapterRevision = async (
+  novelId: string,
+  chapterNumber: number,
+  revisionId: string,
+): Promise<void> => {
+  try {
+    await axios.delete(
+      `/api/novels/${novelId}/chapters/${chapterNumber}/revisions/${revisionId}`,
+    );
+  } catch (error) {
+    console.error('Failed to delete chapter revision:', error);
+    throw error;
+  }
 };
