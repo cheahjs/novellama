@@ -22,6 +22,7 @@ interface TranslationEditorProps {
   onTranslate: (
     sourceContent: string,
     useAutoRetry: boolean,
+    maxAttempts: number,
     previousTranslationData?: {
       previousTranslation?: string;
       qualityFeedback?: string;
@@ -31,11 +32,16 @@ interface TranslationEditorProps {
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
   onQualityCheck?: (sourceContent: string, translatedContent: string) => Promise<QualityCheckResponse | undefined>;
   isTranslating: boolean;
-  onBatchTranslate?: (count: number, useAutoRetry: boolean) => Promise<void>;
+  onBatchTranslate?: (
+    count: number,
+    useAutoRetry: boolean,
+    maxAttempts: number,
+  ) => Promise<void>;
   onBatchRetranslate?: (
     startChapter: number,
     endChapter: number,
     useAutoRetry: boolean,
+    maxAttempts: number,
   ) => Promise<void>;
   isBatchTranslating?: boolean;
   onCancelBatchTranslate?: () => void;
@@ -77,6 +83,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
   const [useImprovementFeedback, setUseImprovementFeedback] =
     useState<boolean>(true);
   const [useAutoRetry, setUseAutoRetry] = useState<boolean>(false);
+  const [maxAttempts, setMaxAttempts] = useState<number>(5);
   const [isAutoRetrying, setIsAutoRetrying] = useState<boolean>(false);
   const [autoRetryAttempt, setAutoRetryAttempt] = useState<number>(0);
   const [useExistingTranslation, setUseExistingTranslation] =
@@ -137,6 +144,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         const result = await onTranslate(
           sourceContent,
           useAutoRetry,
+          maxAttempts,
           previousTranslationData,
         );
 
@@ -392,8 +400,19 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                 className="h-4 w-4 rounded border-gray-300 bg-gray-700 text-blue-600 focus:ring-blue-500"
               />
               <label htmlFor="useAutoRetry" className="text-sm text-gray-300">
-                Auto-retry translation until good quality (max 5 attempts)
+                Auto-retry translation until good quality
               </label>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={maxAttempts}
+                onChange={(e) => setMaxAttempts(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+                className="w-20 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
+                aria-label="Max attempts"
+                title="Max retry attempts"
+              />
+              <span className="text-xs text-gray-400">attempts</span>
             </div>
 
             {isRetranslating && displayedChapter?.qualityCheck && (
@@ -438,7 +457,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
 
           {isAutoRetrying && (
             <div className="mt-2 text-sm text-gray-400">
-              Attempt {autoRetryAttempt}/5 - Trying to achieve good quality
+              Attempt {autoRetryAttempt}/{maxAttempts} - Trying to achieve good quality
               translation...
             </div>
           )}
@@ -454,7 +473,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   <>
                     <FiRefreshCw className="mr-2 animate-spin" />
                     {isAutoRetrying
-                      ? `Attempt ${autoRetryAttempt}/5...`
+                      ? `Attempt ${autoRetryAttempt}/${maxAttempts}...`
                       : 'Translating...'}
                   </>
                 ) : (
@@ -492,7 +511,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   />
                   <button
                     type="button"
-                    onClick={() => onBatchTranslate(batchCount, useAutoRetry)}
+                    onClick={() => onBatchTranslate(batchCount, useAutoRetry, maxAttempts)}
                     disabled={isBatchTranslating}
                     className="flex items-center rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -595,11 +614,22 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
                   <label htmlFor="bulkUseAutoRetry" className="text-sm">
                     Auto-retry for quality
                   </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={maxAttempts}
+                    onChange={(e) => setMaxAttempts(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+                    className="w-20 rounded border bg-gray-800 px-2 py-1 text-sm text-gray-100"
+                    aria-label="Max attempts"
+                    title="Max retry attempts"
+                  />
+                  <span className="text-xs text-gray-400">attempts</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    onBatchRetranslate(startChapter, endChapter, useAutoRetry);
+                    onBatchRetranslate(startChapter, endChapter, useAutoRetry, maxAttempts);
                     setShowBatchRetranslate(false);
                   }}
                   disabled={isBatchTranslating}

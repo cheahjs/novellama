@@ -42,6 +42,7 @@ async function performTranslation({
   useAutoRetry,
   previousTranslationData,
   toastId,
+  maxAttempts = 5,
 }: {
   sourceContent: string;
   novelId: string;
@@ -53,6 +54,7 @@ async function performTranslation({
     useImprovementFeedback?: boolean;
   };
   toastId?: string;
+  maxAttempts?: number;
 }): Promise<TranslationResult> {
   if (!useAutoRetry) {
     return translateContent({
@@ -64,7 +66,8 @@ async function performTranslation({
   }
 
   let bestResult: TranslationResult | null = null;
-  const maxAttempts = 5;
+  // Ensure we have a sane, bounded number of attempts
+  maxAttempts = Math.max(1, Math.min(50, Math.floor(maxAttempts)));
   let lastToastId: string | null = null;
 
   try {
@@ -467,6 +470,7 @@ export default function TranslatePage() {
   const handleTranslate = async (
     sourceContent: string,
     useAutoRetry: boolean,
+    maxAttempts: number,
     previousTranslationData?: {
       previousTranslation?: string;
       qualityFeedback?: string;
@@ -488,6 +492,7 @@ export default function TranslatePage() {
         useAutoRetry,
         previousTranslationData,
         toastId,
+        maxAttempts,
       });
 
       const translatedLines = result.translatedContent.split('\n');
@@ -542,7 +547,11 @@ export default function TranslatePage() {
     }
   };
 
-  const handleBatchTranslate = async (count: number, useAutoRetry: boolean) => {
+  const handleBatchTranslate = async (
+    count: number,
+    useAutoRetry: boolean,
+    maxAttempts: number,
+  ) => {
     if (!novel) return;
 
     setIsBatchTranslating(true);
@@ -580,6 +589,7 @@ export default function TranslatePage() {
           novelId: novel.id,
           useAutoRetry,
           toastId,
+          maxAttempts,
         });
 
         if (shouldCancelBatch) break;
@@ -629,6 +639,7 @@ export default function TranslatePage() {
     startChapter: number,
     endChapter: number,
     useAutoRetry: boolean,
+    maxAttempts: number,
   ) => {
     if (!novel) return;
 
@@ -693,6 +704,7 @@ export default function TranslatePage() {
           currentChapterId: existingChapter.id,
           useAutoRetry,
           toastId,
+          maxAttempts,
         });
 
         if (shouldCancelBatch) break;
