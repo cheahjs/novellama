@@ -81,11 +81,13 @@ export const checkTranslationQuality = async ({
   translatedContent,
   sourceLanguage,
   targetLanguage,
+  novelId,
 }: {
   sourceContent: string;
   translatedContent: string;
   sourceLanguage: string;
   targetLanguage: string;
+  novelId?: string;
 }): Promise<QualityCheckResponse> => {
   try {
     const response = await retryWithBackoff(async () => {
@@ -94,6 +96,7 @@ export const checkTranslationQuality = async ({
         translatedContent,
         sourceLanguage,
         targetLanguage,
+        novelId,
       });
       return resp;
     });

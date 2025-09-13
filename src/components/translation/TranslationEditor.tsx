@@ -152,7 +152,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         setLastQualityCheck(undefined);
       }
     }
-  }, [chapter, nextChapterNumber]);
+  }, [chapter, nextChapterNumber, novelId, showHistory]);
 
   useEffect(() => {
     if (showHistory && displayedChapter) {

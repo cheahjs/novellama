@@ -57,6 +57,13 @@ export interface Novel {
   createdAt: number;
   updatedAt: number;
   translationTemplate?: string;
+  // Optional per-novel model configuration (enabled via env flag)
+  translationModel?: string | null;
+  qualityCheckModel?: string | null;
+  // Token limits
+  maxTokens?: number | null; // Context truncation token limit
+  maxTranslationOutputTokens?: number | null;
+  maxQualityCheckOutputTokens?: number | null;
 }
 
 export interface NovelWithChapters extends Novel {

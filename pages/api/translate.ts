@@ -25,6 +25,7 @@ async function makeTranslationRequest(
   model: string,
   temperature: number,
   apiKey: string,
+  maxOutputTokens: number,
 ) {
   const response = await axios.post(
     url,
@@ -32,7 +33,7 @@ async function makeTranslationRequest(
       model,
       messages,
       temperature,
-      max_tokens: serverConfig.maxTranslationOutputTokens,
+      max_tokens: maxOutputTokens,
       ...(model.includes('gemini')
         ? {
             safetySettings: [
@@ -76,6 +77,7 @@ async function makeStreamingTranslationRequest(
   model: string,
   temperature: number,
   apiKey: string,
+  maxOutputTokens: number,
 ): Promise<{
   content: string;
   usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
@@ -88,7 +90,7 @@ async function makeStreamingTranslationRequest(
       model,
       messages,
       temperature,
-      max_tokens: serverConfig.maxTranslationOutputTokens,
+      max_tokens: maxOutputTokens,
       stream: true,
       stream_options: { include_usage: true },
       ...(model.includes('gemini')
@@ -315,8 +317,13 @@ Remember: Your response must contain ONLY the improved translation text.`;
   ];
 
   // Truncate messages to respect token limits
+  // Allow per-novel maxTokens override when enabled
+  const maxContextTokens = serverConfig.modelConfigEnable && (novel.maxTokens ?? undefined)
+    ? (novel.maxTokens as number)
+    : serverConfig.maxTokens;
+
   const { messages: truncatedMessages, tokenCounts } =
-    await truncateContext(messages);
+    await truncateContext(messages, maxContextTokens);
   console.log('Truncated messages', {
     tokenCounts,
     length: truncatedMessages.length,
@@ -349,9 +356,14 @@ export default async function handler(
     }
 
     const url = `${serverConfig.openaiBaseUrl}/chat/completions`;
-    const model = serverConfig.translationModel;
+    const model = serverConfig.modelConfigEnable && novel.translationModel
+      ? novel.translationModel
+      : serverConfig.translationModel;
     const temperature = serverConfig.translationTemperature;
     const apiKey = serverConfig.openaiApiKey;
+    const maxOutputTokens = serverConfig.modelConfigEnable && (novel.maxTranslationOutputTokens ?? undefined)
+      ? (novel.maxTranslationOutputTokens as number)
+      : serverConfig.maxTranslationOutputTokens;
 
     // Construct messages on the server side using novel metadata
     const { messages, tokenCounts } = await constructMessages(novel, request);
@@ -371,6 +383,7 @@ export default async function handler(
         model,
         temperature,
         apiKey,
+        maxOutputTokens,
       );
       translation = streamResult.content;
       tokenUsage = streamResult.usage;
@@ -383,6 +396,7 @@ export default async function handler(
           model,
           temperature,
           apiKey,
+          maxOutputTokens,
         );
         translation = streamResult.content;
         tokenUsage = streamResult.usage;
@@ -400,6 +414,7 @@ export default async function handler(
         model,
         temperature,
         apiKey,
+        maxOutputTokens,
       );
 
       if (apiResponse.data.choices[0].finish_reason === 'length') {
@@ -410,6 +425,7 @@ export default async function handler(
           model,
           temperature,
           apiKey,
+          maxOutputTokens,
         );
       }
 

@@ -2,12 +2,14 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 import { QualityCheckResponse } from '@/types';
 import { serverConfig } from '../../config';
+import { getNovelById } from '@/utils/fileStorage';
 
 interface QualityCheckRequest {
   sourceContent: string;
   translatedContent: string;
   sourceLanguage: string;
   targetLanguage: string;
+  novelId?: string;
 }
 
 export default async function handler(
@@ -19,7 +21,7 @@ export default async function handler(
   }
 
   try {
-    const { sourceContent, translatedContent, sourceLanguage, targetLanguage } =
+    const { sourceContent, translatedContent, sourceLanguage, targetLanguage, novelId } =
       req.body as QualityCheckRequest;
 
     // Try to get quality check, with one retry on JSON parse error
@@ -28,6 +30,7 @@ export default async function handler(
       translatedContent,
       sourceLanguage,
       targetLanguage,
+      novelId,
     );
 
     return res.status(200).json(qualityCheck);
@@ -56,9 +59,24 @@ async function getQualityCheck(
   translatedContent: string,
   sourceLanguage: string,
   targetLanguage: string,
+  novelId?: string,
   retryCount = 0,
 ): Promise<QualityCheckResponse> {
   const url = `${serverConfig.openaiBaseUrl}/chat/completions`;
+
+  // Resolve per-novel overrides when enabled
+  let model = serverConfig.qualityCheckModel;
+  const temperature = serverConfig.qualityCheckTemperature;
+  let maxTokens = serverConfig.maxQualityCheckOutputTokens;
+  if (serverConfig.modelConfigEnable && novelId) {
+    const novel = await getNovelById(novelId);
+    if (novel) {
+      model = novel.qualityCheckModel || model;
+      if (novel.maxQualityCheckOutputTokens ?? undefined) {
+        maxTokens = novel.maxQualityCheckOutputTokens as number;
+      }
+    }
+  }
 
   const systemPrompt = `You are a professional translator quality checker. 
 You will be given a source text in ${sourceLanguage} and its translation in ${targetLanguage}.
@@ -112,13 +130,13 @@ ${translatedContent}
     const apiResponse = await axios.post(
       url,
       {
-        model: serverConfig.qualityCheckModel,
+        model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        temperature: serverConfig.qualityCheckTemperature,
-        max_tokens: serverConfig.maxQualityCheckOutputTokens,
+        temperature,
+        max_tokens: maxTokens,
         response_format: {
           type: 'json_schema',
           json_schema: {
@@ -171,6 +189,7 @@ ${translatedContent}
           translatedContent,
           sourceLanguage,
           targetLanguage,
+          novelId,
           1,
         );
       }

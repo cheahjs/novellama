@@ -59,6 +59,12 @@ export default async function handler(
           createdAt: Date.now(),
           updatedAt: Date.now(),
           chapterCount: 0,
+          translationTemplate: body.translationTemplate || null,
+          translationModel: body.translationModel || null,
+          qualityCheckModel: body.qualityCheckModel || null,
+          maxTokens: body.maxTokens ?? null,
+          maxTranslationOutputTokens: body.maxTranslationOutputTokens ?? null,
+          maxQualityCheckOutputTokens: body.maxQualityCheckOutputTokens ?? null,
         };
         await saveNovel(novel);
         return res.status(201).json(novel);

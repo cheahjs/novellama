@@ -140,8 +140,10 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       INSERT INTO novels (
         id, title, sourceLanguage, targetLanguage,
         systemPrompt, sourceUrl, translationTemplate,
+        translationModel, qualityCheckModel,
+        maxTokens, maxTranslationOutputTokens, maxQualityCheckOutputTokens,
         chapterCount, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         sourceLanguage = excluded.sourceLanguage,
@@ -149,6 +151,11 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         systemPrompt = excluded.systemPrompt,
         sourceUrl = excluded.sourceUrl,
         translationTemplate = excluded.translationTemplate,
+        translationModel = excluded.translationModel,
+        qualityCheckModel = excluded.qualityCheckModel,
+        maxTokens = excluded.maxTokens,
+        maxTranslationOutputTokens = excluded.maxTranslationOutputTokens,
+        maxQualityCheckOutputTokens = excluded.maxQualityCheckOutputTokens,
         chapterCount = excluded.chapterCount,
         updatedAt = excluded.updatedAt
     `,
@@ -160,6 +167,11 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       novel.systemPrompt,
       novel.sourceUrl,
       novel.translationTemplate || null,
+      novel.translationModel || null,
+      novel.qualityCheckModel || null,
+      novel.maxTokens ?? null,
+      novel.maxTranslationOutputTokens ?? null,
+      novel.maxQualityCheckOutputTokens ?? null,
       novel.chapterCount || 0,
       now,
       now,

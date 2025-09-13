@@ -6,6 +6,7 @@ import { exportChapters, importChapters } from '@/services/storage';
 import ReferenceInput from '@/components/novel/ReferenceInput';
 import ReferenceItem from '@/components/novel/ReferenceItem';
 import LiveTokenCounter from '@/components/info/LiveTokenCounter';
+import { useConfig } from '@/hooks/useConfig';
 
 interface NovelSettingsProps {
   novel: Novel;
@@ -20,6 +21,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { config } = useConfig();
   const [formData, setFormData] = useState({
     title: novel.title,
     sourceLanguage: novel.sourceLanguage,
@@ -30,6 +32,11 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     translationTemplate:
       novel.translationTemplate ||
       'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.\n\n${sourceContent}',
+    translationModel: novel.translationModel || '',
+    qualityCheckModel: novel.qualityCheckModel || '',
+    maxTokens: novel.maxTokens ?? '',
+    maxTranslationOutputTokens: novel.maxTranslationOutputTokens ?? '',
+    maxQualityCheckOutputTokens: novel.maxQualityCheckOutputTokens ?? '',
   });
   const [editingReferenceId, setEditingReferenceId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -93,7 +100,29 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    // Normalize numeric fields (empty string => null)
+    const normalized: Partial<Novel> = {
+      ...formData,
+      maxTokens:
+        formData.maxTokens === '' ? null : Number(formData.maxTokens),
+      maxTranslationOutputTokens:
+        formData.maxTranslationOutputTokens === ''
+          ? null
+          : Number(formData.maxTranslationOutputTokens),
+      maxQualityCheckOutputTokens:
+        formData.maxQualityCheckOutputTokens === ''
+          ? null
+          : Number(formData.maxQualityCheckOutputTokens),
+      translationModel:
+        formData.translationModel && formData.translationModel.trim().length > 0
+          ? formData.translationModel.trim()
+          : null,
+      qualityCheckModel:
+        formData.qualityCheckModel && formData.qualityCheckModel.trim().length > 0
+          ? formData.qualityCheckModel.trim()
+          : null,
+    };
+    onSave(normalized);
     onClose();
   };
 
@@ -256,6 +285,72 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
               ${'{sourceContent}'}
             </p>
           </div>
+
+          {config?.modelConfigEnable && (
+            <div className="rounded border border-gray-700 p-3">
+              <div className="mb-2 font-medium">Model & Token Limits (optional)</div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Translation Model</label>
+                  <input
+                    type="text"
+                    name="translationModel"
+                    value={formData.translationModel}
+                    onChange={handleChange}
+                    className="w-full rounded border p-2"
+                    placeholder="e.g., gpt-4o-mini or gemini-2.0-flash"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Leave blank to use global default.</p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Quality Check Model</label>
+                  <input
+                    type="text"
+                    name="qualityCheckModel"
+                    value={formData.qualityCheckModel}
+                    onChange={handleChange}
+                    className="w-full rounded border p-2"
+                    placeholder="e.g., gpt-4o or gemini-2.0-pro-exp-02-05"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Leave blank to use global default.</p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Max Context Tokens</label>
+                  <input
+                    type="number"
+                    name="maxTokens"
+                    value={formData.maxTokens}
+                    onChange={handleChange}
+                    className="w-full rounded border p-2"
+                    min={0}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Used to truncate previous chapter context.</p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Max Translation Output Tokens</label>
+                  <input
+                    type="number"
+                    name="maxTranslationOutputTokens"
+                    value={formData.maxTranslationOutputTokens}
+                    onChange={handleChange}
+                    className="w-full rounded border p-2"
+                    min={0}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Max Quality Check Output Tokens</label>
+                  <input
+                    type="number"
+                    name="maxQualityCheckOutputTokens"
+                    value={formData.maxQualityCheckOutputTokens}
+                    onChange={handleChange}
+                    className="w-full rounded border p-2"
+                    min={0}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="mb-1 block text-sm font-medium">References</label>

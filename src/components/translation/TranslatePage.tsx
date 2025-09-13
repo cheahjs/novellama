@@ -768,6 +768,7 @@ export default function TranslatePage() {
         translatedContent,
         sourceLanguage: novel.sourceLanguage,
         targetLanguage: novel.targetLanguage,
+        novelId: novel.id,
       });
 
       // If we have a quality check result, update the chapter

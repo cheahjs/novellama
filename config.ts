@@ -22,6 +22,8 @@ export const serverConfig = {
   maxTranslationOutputTokens: Number(process.env.MAX_TRANSLATION_OUTPUT_TOKENS || '8000'),
   maxQualityCheckOutputTokens: Number(process.env.MAX_QUALITY_CHECK_OUTPUT_TOKENS || process.env.MAX_TRANSLATION_OUTPUT_TOKENS || '8000'),
   translationUseStreaming: getEnvBoolean('TRANSLATION_USE_STREAMING', false),
+  // Feature flag: enable per-novel model and token limit configuration
+  modelConfigEnable: getEnvBoolean('ENABLE_MODEL_CONFIG', false),
   // Post-processing toggles (default to true for backward compatibility)
   postprocessRemoveXmlTags: getEnvBoolean('TRANSLATION_POSTPROCESS_REMOVE_XML_TAGS', true),
   postprocessRemoveCodeBlocks: getEnvBoolean('TRANSLATION_POSTPROCESS_REMOVE_CODE_BLOCKS', true), 

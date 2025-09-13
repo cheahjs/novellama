@@ -34,11 +34,30 @@ function initializeDb() {
       systemPrompt TEXT NOT NULL,
       sourceUrl TEXT NOT NULL,
       translationTemplate TEXT,
+      translationModel TEXT,
+      qualityCheckModel TEXT,
+      maxTokens INTEGER,
+      maxTranslationOutputTokens INTEGER,
+      maxQualityCheckOutputTokens INTEGER,
       chapterCount INTEGER DEFAULT 0,
       createdAt INTEGER NOT NULL,
       updatedAt INTEGER NOT NULL
     )
   `);
+
+  // Migrate existing databases by adding missing columns
+  const existingColumns = db.prepare(`PRAGMA table_info(novels)`).all() as Array<{ name: string }>;
+  const columnNames = new Set(existingColumns.map((c) => c.name));
+  const addColumnIfMissing = (name: string, type: 'TEXT' | 'INTEGER') => {
+    if (!columnNames.has(name)) {
+      db.exec(`ALTER TABLE novels ADD COLUMN ${name} ${type}`);
+    }
+  };
+  addColumnIfMissing('translationModel', 'TEXT');
+  addColumnIfMissing('qualityCheckModel', 'TEXT');
+  addColumnIfMissing('maxTokens', 'INTEGER');
+  addColumnIfMissing('maxTranslationOutputTokens', 'INTEGER');
+  addColumnIfMissing('maxQualityCheckOutputTokens', 'INTEGER');
 
   // Create references table
   db.exec(`
