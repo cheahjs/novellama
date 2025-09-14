@@ -56,6 +56,7 @@ export const translateContent = async (
         translatedContent,
         sourceLanguage: response.data.sourceLanguage,
         targetLanguage: response.data.targetLanguage,
+        novelId: request.novelId,
       })
     );
 
