@@ -1,27 +1,152 @@
-import { AutoTokenizer } from '@huggingface/transformers';
-import type { PreTrainedTokenizer } from '@huggingface/transformers';
+import { Worker } from 'worker_threads';
 import assert from 'assert';
 import { serverConfig } from '../../config';
 
-let encoder: PreTrainedTokenizer | null = null;
+interface WorkerMessage {
+  id: number;
+  type: string;
+  payload?: unknown;
+  result?: unknown;
+  error?: string;
+}
 
-export async function initTokenizer(): Promise<PreTrainedTokenizer> {
+interface PendingMessage {
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
+}
+
+let worker: Worker | null = null;
+let messageId = 0;
+const pendingMessages = new Map<number, PendingMessage>();
+
+// Inline worker code as a string to avoid bundling issues
+const workerCode = `
+import { parentPort } from 'worker_threads';
+import { AutoTokenizer } from '@huggingface/transformers';
+
+let encoder = null;
+
+async function initTokenizer(modelName, cacheDir) {
+  console.log('Initializing tokenizer', modelName, cacheDir);
   if (!encoder) {
     try {
-      // Get model name from server config (this file is only used server-side)
-      const modelName = serverConfig.tokenizerModel;
-
-      // Initialize tokenizer for server environment
       encoder = await AutoTokenizer.from_pretrained(modelName, {
         progress_callback: undefined,
-        cache_dir: './data/cache',
+        cache_dir: cacheDir,
       });
     } catch (error) {
-      console.error('Error initializing tokenizer:', error);
-      throw error; // Propagate the error to handle it upstream
+      throw new Error(\`Error initializing tokenizer: \${error.message}\`);
     }
   }
   return encoder;
+}
+
+async function countMessagesTokens(messages) {
+  if (!encoder) {
+    throw new Error('Tokenizer not initialized');
+  }
+
+  try {
+    const tokenCounts = messages
+      .map((message) => {
+        const encoded = encoder.encode(message.content);
+        return encoded.length;
+      })
+      .reduce((a, b) => a + b, 0);
+
+    return tokenCounts;
+  } catch {
+    // Return a conservative estimate if tokenizer fails
+    return messages.reduce(
+      (acc, msg) => acc + Math.ceil(msg.content.length / 4),
+      0,
+    );
+  }
+}
+
+// Handle messages from the main thread
+parentPort.on('message', async (data) => {
+  const { id, type, payload } = data;
+
+  try {
+    switch (type) {
+      case 'init':
+        await initTokenizer(payload.modelName, payload.cacheDir);
+        parentPort.postMessage({ id, type: 'success', result: true });
+        break;
+
+      case 'countTokens':
+        const tokenCount = await countMessagesTokens(payload.messages);
+        parentPort.postMessage({ id, type: 'success', result: tokenCount });
+        break;
+
+      default:
+        throw new Error(\`Unknown message type: \${type}\`);
+    }
+  } catch (err) {
+    parentPort.postMessage({
+      id,
+      type: 'error',
+      error: err.message,
+    });
+  }
+});
+`;
+
+function createWorker(): Worker {
+  // Create worker from inline code instead of file path
+  const newWorker = new Worker(workerCode, { eval: true });
+  
+  newWorker.on('message', (data: WorkerMessage) => {
+    const { id, type, result, error } = data;
+    const pending = pendingMessages.get(id);
+    
+    if (pending) {
+      pendingMessages.delete(id);
+      if (type === 'success') {
+        pending.resolve(result);
+      } else if (type === 'error') {
+        pending.reject(new Error(error || 'Unknown worker error'));
+      }
+    }
+  });
+
+  newWorker.on('error', (error) => {
+    console.error('Worker error:', error);
+    // Reject all pending messages
+    for (const [id, pending] of pendingMessages.entries()) {
+      pending.reject(new Error(`Worker error: ${error.message}`));
+      pendingMessages.delete(id);
+    }
+  });
+
+  return newWorker;
+}
+
+function sendWorkerMessage(type: string, payload: unknown): Promise<unknown> {
+  if (!worker) {
+    worker = createWorker();
+  }
+
+  const id = ++messageId;
+  
+  return new Promise((resolve, reject) => {
+    pendingMessages.set(id, { resolve, reject });
+    worker!.postMessage({ id, type, payload });
+  });
+}
+
+export async function initTokenizer(): Promise<boolean> {
+  try {
+    const modelName = serverConfig.tokenizerModel;
+    const cacheDir = './data/cache';
+    
+    await sendWorkerMessage('init', { modelName, cacheDir });
+    return true;
+  } catch (error) {
+    console.error('Error initializing tokenizer:', error);
+    throw error;
+  }
 }
 
 interface ChatMessage {
@@ -33,17 +158,12 @@ export async function countMessagesTokens(
   messages: ChatMessage[],
 ): Promise<number> {
   try {
-    const tokenizer = await initTokenizer();
-
-    // Count tokens for each message
-    const tokenCounts = messages
-      .map((message) => {
-        const encoded = tokenizer.encode(message.content);
-        return encoded.length;
-      })
-      .reduce((a, b) => a + b, 0);
-
-    return tokenCounts;
+    // Ensure tokenizer is initialized
+    await initTokenizer();
+    
+    // Send messages to worker for token counting
+    const tokenCount = await sendWorkerMessage('countTokens', { messages });
+    return typeof tokenCount === 'number' ? tokenCount : 0;
   } catch (error) {
     console.error('Error counting tokens:', error);
     // Return a conservative estimate if tokenizer fails
@@ -142,4 +262,17 @@ export async function truncateContext(
       total: bestTokenCount,
     },
   };
+}
+
+// Cleanup function to terminate the worker
+export function terminateTokenizer(): void {
+  if (worker) {
+    worker.terminate();
+    worker = null;
+    // Reject any pending messages
+    for (const [id, pending] of pendingMessages.entries()) {
+      pending.reject(new Error('Worker terminated'));
+      pendingMessages.delete(id);
+    }
+  }
 }
