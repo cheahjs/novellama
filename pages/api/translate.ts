@@ -210,7 +210,7 @@ async function constructMessages(
         novel.references
           .map(
             (ref: Reference) =>
-              `<ref src="${ref.title}">\n${ref.content}\n</ref src="${ref.title}">`,
+              `<ref id="${ref.id}" title="${ref.title}">\n${ref.content}\n</ref>`,
           )
           .join('\n\n')
       : '';
@@ -299,6 +299,23 @@ Remember: Your response must contain ONLY the improved translation text.`;
     .replaceAll('${sourceContent}', request.sourceContent)
     .replaceAll('${improvementPrompt}', improvementPrompt);
 
+  const toolingInstructions = `Formatting instructions for reference updates:
+1) Output ONLY the final translation text first (no tags or code blocks).
+2) If you propose reference changes, append exactly one fenced block afterwards:
+\`\`\`toolcalls
+{"reference_ops": [ /* zero or more ops */ ]}
+\`\`\`
+- Allowed ops: "reference.add", "reference.update".
+- Prefer using existing reference \"id\" for updates; otherwise use exact \"title\".
+- Keep each op concise. Do not include this block if there are no changes.
+
+Use references to keep track of information that would be helpful for future translations, such as character names, locations, etc.`;
+
+  // Optionally include tool instructions depending on per-novel or global config
+  const toolCallsEnabled = (serverConfig.modelConfigEnable && (novel.translationToolCallsEnable ?? null) !== null)
+    ? Boolean(novel.translationToolCallsEnable)
+    : serverConfig.translationToolCallsEnable;
+
   // Create messages for the API call
   const messages: ChatMessage[] = [
     {
@@ -310,10 +327,15 @@ Remember: Your response must contain ONLY the improved translation text.`;
       content: `${referencesText}${context.length > 0 ? '\n\nYou are provided the the translations of previous chapters. Use them to help with guide translation.' : ''}`,
     },
     ...context,
-    {
-      role: 'user' as const,
-      content: translationInstruction,
-    },
+    toolCallsEnabled
+      ? {
+          role: 'user' as const,
+          content: toolingInstructions + '\n\n' + translationInstruction,
+        }
+      : {
+          role: 'user' as const,
+          content: translationInstruction,
+        },
   ];
 
   // Truncate messages to respect token limits
@@ -441,12 +463,14 @@ export default async function handler(
       });
     }
 
-    // Post process the translation to remove any known issues
-    const postProcessedTranslation = postProcessTranslation(translation);
+    // Extract toolcalls, then post-process translation text
+    const { translation: strippedTranslation, toolcalls } = extractToolcallsAndStrip(translation);
+    const postProcessedTranslation = postProcessTranslation(strippedTranslation);
 
     // Return the translation along with the novel's language settings for quality check
     return res.status(200).json({
       translation: postProcessedTranslation,
+      toolCalls: Array.isArray(toolcalls?.reference_ops) ? toolcalls.reference_ops : [],
       tokenUsage: tokenUsage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       sourceLanguage: novel.sourceLanguage,
       targetLanguage: novel.targetLanguage,
@@ -471,6 +495,25 @@ export default async function handler(
       error: message,
     });
   }
+}
+
+function extractToolcallsAndStrip(translation: string): {
+  translation: string;
+  toolcalls: { reference_ops?: Array<{ type?: string; id?: string; title?: string; content?: string }> } | null;
+} {
+  const fenceRegex = /```toolcalls\s*([\s\S]*?)```/i;
+  const match = translation.match(fenceRegex);
+  if (!match) {
+    return { translation, toolcalls: null };
+  }
+  let parsed: { reference_ops?: Array<{ type?: string; id?: string; title?: string; content?: string }> } | null = null;
+  try {
+    parsed = JSON.parse(match[1]);
+  } catch {
+    parsed = null;
+  }
+  const stripped = translation.replace(fenceRegex, '').trim();
+  return { translation: stripped, toolcalls: parsed };
 }
 
 function postProcessTranslation(translation: string) {

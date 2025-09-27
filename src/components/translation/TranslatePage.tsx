@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { FiArrowLeft, FiSettings, FiSliders } from 'react-icons/fi';
-import { Novel, TranslationChapter, AppearanceSettings } from '@/types';
+import { Novel, TranslationChapter, AppearanceSettings, ReferenceOp } from '@/types';
 import {
   getNovel,
   saveNovel,
@@ -33,6 +33,7 @@ interface TranslationResult {
     feedback: string;
     isGoodQuality: boolean;
   };
+  toolCalls?: ReferenceOp[];
 }
 
 async function performTranslation({
@@ -533,6 +534,51 @@ export default function TranslatePage() {
         setChapterMetadata,
         setNovel,
       });
+
+      // Optionally apply reference tool-calls if provided by the model
+      if (Array.isArray(result.toolCalls) && result.toolCalls.length > 0) {
+        try {
+          const updatedNovel: Novel = { ...novel } as Novel;
+          const ops = result.toolCalls as ReferenceOp[];
+          const now = Date.now();
+          const chapterNum = currentChapter ? currentChapter.number : currentChapterNumber;
+          for (const op of ops) {
+            if (op.type === 'reference.add') {
+              if (!op.title || !op.content) continue;
+              const id = `ref_${now}_${Math.random().toString(36).slice(2, 8)}`;
+              updatedNovel.references.push({
+                id,
+                novelId: updatedNovel.id,
+                title: op.title,
+                content: op.content,
+                tokenCount: undefined,
+                createdAt: now,
+                updatedAt: now,
+                createdInChapterNumber: chapterNum,
+                updatedInChapterNumber: chapterNum,
+              });
+            } else if (op.type === 'reference.update') {
+              const idx = updatedNovel.references.findIndex((r) =>
+                op.id ? r.id === op.id : (op.title ? r.title === op.title : false),
+              );
+              if (idx >= 0) {
+                if (typeof op.title === 'string') {
+                  updatedNovel.references[idx].title = op.title;
+                }
+                if (typeof op.content === 'string') {
+                  updatedNovel.references[idx].content = op.content;
+                }
+                updatedNovel.references[idx].updatedAt = now;
+                (updatedNovel.references[idx] as unknown as { updatedInChapterNumber?: number | null }).updatedInChapterNumber = chapterNum;
+              }
+            }
+          }
+          await saveNovel(updatedNovel);
+          setNovel(updatedNovel);
+        } catch (e) {
+          console.warn('Failed to auto-apply reference toolCalls; ignoring.', e);
+        }
+      }
 
       toast.dismiss(toastId);
       toast.success(

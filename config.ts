@@ -24,6 +24,8 @@ export const serverConfig = {
   translationUseStreaming: getEnvBoolean('TRANSLATION_USE_STREAMING', false),
   // Feature flag: enable per-novel model and token limit configuration
   modelConfigEnable: getEnvBoolean('ENABLE_MODEL_CONFIG', false),
+  // Feature flag: enable translation toolcalls globally; per-novel override when modelConfigEnable=true
+  translationToolCallsEnable: getEnvBoolean('TRANSLATION_TOOLCALLS_ENABLE', false),
   // Post-processing toggles (default to true for backward compatibility)
   postprocessRemoveXmlTags: getEnvBoolean('TRANSLATION_POSTPROCESS_REMOVE_XML_TAGS', true),
   postprocessRemoveCodeBlocks: getEnvBoolean('TRANSLATION_POSTPROCESS_REMOVE_CODE_BLOCKS', true), 

@@ -5,6 +5,7 @@ import {
   TranslationChapter,
 } from '@/types';
 import getDb from './db';
+import { nanoid } from 'nanoid';
 
 // Read all novels from database (without chapters)
 export async function readNovels(): Promise<Novel[]> {
@@ -177,22 +178,53 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       now,
     );
 
-    // Delete existing references
-    db.prepare(`DELETE FROM "references" WHERE novelId = ?`).run(novel.id);
+    // Upsert references without deleting existing, to preserve history.
+    const upsertRef = db.prepare(`
+      INSERT INTO "references" (
+        id, novelId, title, content, tokenCount, createdAt, updatedAt,
+        createdInChapterNumber, updatedInChapterNumber
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        content = excluded.content,
+        tokenCount = excluded.tokenCount,
+        updatedAt = excluded.updatedAt,
+        updatedInChapterNumber = excluded.updatedInChapterNumber
+    `);
 
-    // Insert new references
-    const insertReference = db.prepare(`
-      INSERT INTO "references" (id, novelId, title, content, tokenCount)
-      VALUES (?, ?, ?, ?, ?)
+    const insertRevision = db.prepare(`
+      INSERT INTO reference_revisions (
+        id, referenceId, title, content, chapterNumber, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     for (const ref of novel.references) {
-      insertReference.run(
+      const createdAt = ref.createdAt || now;
+      const updatedAt = ref.updatedAt || now;
+      const createdInChapterNumber = (ref as { createdInChapterNumber?: number | null }).createdInChapterNumber ?? null;
+      const updatedInChapterNumber = (ref as { updatedInChapterNumber?: number | null }).updatedInChapterNumber ?? null;
+
+      upsertRef.run(
         ref.id,
         novel.id,
         ref.title,
         ref.content,
         ref.tokenCount || null,
+        createdAt,
+        updatedAt,
+        createdInChapterNumber,
+        updatedInChapterNumber,
+      );
+
+      // Record a revision when newly created or updated this save
+      const revisionId = nanoid();
+      insertRevision.run(
+        revisionId,
+        ref.id,
+        ref.title,
+        ref.content,
+        updatedInChapterNumber ?? createdInChapterNumber,
+        now,
       );
     }
 

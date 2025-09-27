@@ -67,7 +67,24 @@ function initializeDb() {
       title TEXT NOT NULL,
       content TEXT NOT NULL,
       tokenCount INTEGER,
+      createdAt INTEGER,
+      updatedAt INTEGER,
+      createdInChapterNumber INTEGER,
+      updatedInChapterNumber INTEGER,
       FOREIGN KEY (novelId) REFERENCES novels(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create reference_revisions table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reference_revisions (
+      id TEXT PRIMARY KEY,
+      referenceId TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      chapterNumber INTEGER,
+      createdAt INTEGER NOT NULL,
+      FOREIGN KEY (referenceId) REFERENCES "references"(id) ON DELETE CASCADE
     )
   `);
 

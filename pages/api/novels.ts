@@ -62,6 +62,7 @@ export default async function handler(
           translationTemplate: body.translationTemplate || null,
           translationModel: body.translationModel || null,
           qualityCheckModel: body.qualityCheckModel || null,
+          translationToolCallsEnable: body.translationToolCallsEnable ?? null,
           maxTokens: body.maxTokens ?? null,
           maxTranslationOutputTokens: body.maxTranslationOutputTokens ?? null,
           maxQualityCheckOutputTokens: body.maxQualityCheckOutputTokens ?? null,

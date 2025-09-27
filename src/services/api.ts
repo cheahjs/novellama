@@ -46,6 +46,7 @@ export const translateContent = async (
     });
 
     const translatedContent = response.data.translation;
+    const toolCalls = response.data.toolCalls as TranslationResponse['toolCalls'];
     const tokenUsage = response.data.tokenUsage;
     const tokenCounts = response.data.tokenCounts;
 
@@ -70,6 +71,7 @@ export const translateContent = async (
         translation: tokenCounts.translation,
       },
       qualityCheck: qualityCheckResponse,
+      toolCalls,
     };
   } catch (error) {
     console.error('Translation error after retries:', error);

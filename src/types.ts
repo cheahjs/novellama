@@ -25,6 +25,8 @@ export interface Reference {
   tokenCount?: number;
   createdAt: number;
   updatedAt: number;
+  createdInChapterNumber?: number | null;
+  updatedInChapterNumber?: number | null;
 }
 
 export interface TranslationChapter {
@@ -40,9 +42,14 @@ export interface TranslationChapter {
 
 export interface Reference {
   id: string;
+  novelId: string;
   title: string;
   content: string;
   tokenCount?: number; // Optional for backward compatibility
+  createdAt: number;
+  updatedAt: number;
+  createdInChapterNumber?: number | null;
+  updatedInChapterNumber?: number | null;
 }
 
 export interface Novel {
@@ -60,6 +67,8 @@ export interface Novel {
   // Optional per-novel model configuration (enabled via env flag)
   translationModel?: string | null;
   qualityCheckModel?: string | null;
+  // Optional per-novel toolcalls toggle
+  translationToolCallsEnable?: boolean | null;
   // Token limits
   maxTokens?: number | null; // Context truncation token limit
   maxTranslationOutputTokens?: number | null;
@@ -93,6 +102,7 @@ export interface TranslationResponse {
     translation: number;
   };
   qualityCheck?: QualityCheckResponse;
+  toolCalls?: ReferenceOp[];
 }
 
 export interface QualityCheckResponse {
@@ -116,4 +126,25 @@ export interface AppearanceSettings {
   fontSize?: number; // e.g., 16
   fontFamily?: string; // e.g., 'Arial, sans-serif'
   margin?: number; // e.g., 4 (representing p-4 or similar)
+}
+
+// Reference tool-call operations returned by the model
+export type ReferenceOpType =
+  | 'reference.add'
+  | 'reference.update';
+
+export interface ReferenceOp {
+  type: ReferenceOpType;
+  id?: string; // for update/delete when known
+  title?: string; // fallback key if id is unknown
+  content?: string; // new/updated content
+}
+
+export interface ReferenceRevision {
+  id: string;
+  referenceId: string;
+  title: string;
+  content: string;
+  chapterNumber: number | null;
+  createdAt: number;
 }
