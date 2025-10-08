@@ -6,6 +6,7 @@ export interface ClientConfig {
   tokenizerModel: string;
   maxTokens: number;
   modelConfigEnable: boolean;
+  translationToolCallsEnable: boolean;
 }
 
 // Default client configuration
@@ -13,6 +14,7 @@ const clientConfig: ClientConfig = {
   tokenizerModel: process.env.TOKENIZER_MODEL || 'Xenova/gpt-4o',
   maxTokens: Number(process.env.MAX_TOKENS || '16000'),
   modelConfigEnable: serverConfig.modelConfigEnable,
+  translationToolCallsEnable: serverConfig.translationToolCallsEnable,
 };
 
 export default async function handler(

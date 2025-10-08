@@ -36,6 +36,7 @@ function initializeDb() {
       translationTemplate TEXT,
       translationModel TEXT,
       qualityCheckModel TEXT,
+      translationToolCallsEnable INTEGER,
       maxTokens INTEGER,
       maxTranslationOutputTokens INTEGER,
       maxQualityCheckOutputTokens INTEGER,
@@ -55,6 +56,7 @@ function initializeDb() {
   };
   addColumnIfMissing('translationModel', 'TEXT');
   addColumnIfMissing('qualityCheckModel', 'TEXT');
+  addColumnIfMissing('translationToolCallsEnable', 'INTEGER');
   addColumnIfMissing('maxTokens', 'INTEGER');
   addColumnIfMissing('maxTranslationOutputTokens', 'INTEGER');
   addColumnIfMissing('maxQualityCheckOutputTokens', 'INTEGER');

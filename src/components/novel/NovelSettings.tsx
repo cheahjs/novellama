@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
-import { Novel, Reference } from '@/types';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FiSave, FiX } from 'react-icons/fi';
 import { FiDownload, FiUpload } from 'react-icons/fi';
-import { exportChapters, importChapters } from '@/services/storage';
 import ReferenceInput from '@/components/novel/ReferenceInput';
 import ReferenceItem from '@/components/novel/ReferenceItem';
 import LiveTokenCounter from '@/components/info/LiveTokenCounter';
+import { exportChapters, importChapters } from '@/services/storage';
 import { useConfig } from '@/hooks/useConfig';
+import type { Novel, Reference } from '@/types';
+
+type ToolCallOverrideOption = 'inherit' | 'enabled' | 'disabled';
+
+interface SettingsFormState {
+  title: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  systemPrompt: string;
+  sourceUrl: string;
+  references: Reference[];
+  translationTemplate: string;
+  translationModel: string;
+  qualityCheckModel: string;
+  translationToolCallsEnable: ToolCallOverrideOption;
+  maxTokens: string;
+  maxTranslationOutputTokens: string;
+  maxQualityCheckOutputTokens: string;
+}
 
 interface NovelSettingsProps {
   novel: Novel;
@@ -22,7 +40,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
   onClose,
 }) => {
   const { config } = useConfig();
-  const [formData, setFormData] = useState({
+  const initialForm = useMemo<SettingsFormState>(() => ({
     title: novel.title,
     sourceLanguage: novel.sourceLanguage,
     targetLanguage: novel.targetLanguage,
@@ -34,10 +52,36 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
       'Translate the following text from ${sourceLanguage} to ${targetLanguage}. Make sure to preserve and translate the header.\n\n${sourceContent}',
     translationModel: novel.translationModel || '',
     qualityCheckModel: novel.qualityCheckModel || '',
-    maxTokens: novel.maxTokens ?? '',
-    maxTranslationOutputTokens: novel.maxTranslationOutputTokens ?? '',
-    maxQualityCheckOutputTokens: novel.maxQualityCheckOutputTokens ?? '',
-  });
+    translationToolCallsEnable:
+      novel.translationToolCallsEnable === null || typeof novel.translationToolCallsEnable === 'undefined'
+        ? 'inherit'
+        : novel.translationToolCallsEnable
+          ? 'enabled'
+          : 'disabled',
+    maxTokens:
+      typeof novel.maxTokens === 'number' && !Number.isNaN(novel.maxTokens)
+        ? String(novel.maxTokens)
+        : '',
+    maxTranslationOutputTokens:
+      typeof novel.maxTranslationOutputTokens === 'number' &&
+      !Number.isNaN(novel.maxTranslationOutputTokens)
+        ? String(novel.maxTranslationOutputTokens)
+        : '',
+    maxQualityCheckOutputTokens:
+      typeof novel.maxQualityCheckOutputTokens === 'number' &&
+      !Number.isNaN(novel.maxQualityCheckOutputTokens)
+        ? String(novel.maxQualityCheckOutputTokens)
+        : '',
+  }), [novel]);
+  const [formData, setFormData] = useState<SettingsFormState>(initialForm);
+  const [showToolCallOverride, setShowToolCallOverride] = useState<boolean>(
+    initialForm.translationToolCallsEnable !== 'inherit',
+  );
+
+  useEffect(() => {
+    setFormData(initialForm);
+    setShowToolCallOverride(initialForm.translationToolCallsEnable !== 'inherit');
+  }, [initialForm]);
   const [editingReferenceId, setEditingReferenceId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -45,7 +89,9 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
   const [importText, setImportText] = useState<string>('');
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -102,15 +148,25 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     e.preventDefault();
     // Normalize numeric fields (empty string => null)
     const normalized: Partial<Novel> = {
-      ...formData,
+      title: formData.title,
+      sourceLanguage: formData.sourceLanguage,
+      targetLanguage: formData.targetLanguage,
+      systemPrompt: formData.systemPrompt,
+      sourceUrl: formData.sourceUrl,
+      references: formData.references,
+      translationTemplate: formData.translationTemplate,
       maxTokens:
-        formData.maxTokens === '' ? null : Number(formData.maxTokens),
+        formData.maxTokens === '' || Number.isNaN(Number(formData.maxTokens))
+          ? null
+          : Number(formData.maxTokens),
       maxTranslationOutputTokens:
-        formData.maxTranslationOutputTokens === ''
+        formData.maxTranslationOutputTokens === '' ||
+        Number.isNaN(Number(formData.maxTranslationOutputTokens))
           ? null
           : Number(formData.maxTranslationOutputTokens),
       maxQualityCheckOutputTokens:
-        formData.maxQualityCheckOutputTokens === ''
+        formData.maxQualityCheckOutputTokens === '' ||
+        Number.isNaN(Number(formData.maxQualityCheckOutputTokens))
           ? null
           : Number(formData.maxQualityCheckOutputTokens),
       translationModel:
@@ -121,6 +177,10 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
         formData.qualityCheckModel && formData.qualityCheckModel.trim().length > 0
           ? formData.qualityCheckModel.trim()
           : null,
+      translationToolCallsEnable:
+        formData.translationToolCallsEnable === 'inherit'
+          ? null
+          : formData.translationToolCallsEnable === 'enabled',
     };
     onSave(normalized);
     onClose();
@@ -347,6 +407,54 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
                     className="w-full rounded border p-2"
                     min={0}
                   />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-sm font-medium">Translation Tool Calls</label>
+                  <div className="rounded border border-gray-700 p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium">
+                          {formData.translationToolCallsEnable === 'inherit' &&
+                            `Using global default (${config?.translationToolCallsEnable ? 'enabled' : 'disabled'})`}
+                          {formData.translationToolCallsEnable === 'enabled' && 'Forced enabled'}
+                          {formData.translationToolCallsEnable === 'disabled' && 'Forced disabled'}
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Control whether the model may auto-update references via tool calls.
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <span>Override</span>
+                        <input
+                          type="checkbox"
+                          checked={showToolCallOverride || formData.translationToolCallsEnable !== 'inherit'}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            setShowToolCallOverride(checked);
+                            if (!checked) {
+                              setFormData((prev) => ({
+                                ...prev,
+                                translationToolCallsEnable: 'inherit',
+                              }));
+                            }
+                          }}
+                          className="h-4 w-4"
+                        />
+                      </label>
+                    </div>
+                    {(showToolCallOverride || formData.translationToolCallsEnable !== 'inherit') && (
+                      <select
+                        name="translationToolCallsEnable"
+                        value={formData.translationToolCallsEnable}
+                        onChange={handleChange}
+                        className="mt-3 w-full rounded border p-2"
+                      >
+                        <option value="enabled">Force enabled</option>
+                        <option value="disabled">Force disabled</option>
+                        <option value="inherit">Use global default</option>
+                      </select>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

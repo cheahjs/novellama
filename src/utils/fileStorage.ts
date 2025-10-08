@@ -142,9 +142,10 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         id, title, sourceLanguage, targetLanguage,
         systemPrompt, sourceUrl, translationTemplate,
         translationModel, qualityCheckModel,
+        translationToolCallsEnable,
         maxTokens, maxTranslationOutputTokens, maxQualityCheckOutputTokens,
         chapterCount, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         sourceLanguage = excluded.sourceLanguage,
@@ -154,6 +155,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         translationTemplate = excluded.translationTemplate,
         translationModel = excluded.translationModel,
         qualityCheckModel = excluded.qualityCheckModel,
+        translationToolCallsEnable = excluded.translationToolCallsEnable,
         maxTokens = excluded.maxTokens,
         maxTranslationOutputTokens = excluded.maxTranslationOutputTokens,
         maxQualityCheckOutputTokens = excluded.maxQualityCheckOutputTokens,
@@ -170,6 +172,13 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       novel.translationTemplate || null,
       novel.translationModel || null,
       novel.qualityCheckModel || null,
+      novel.translationToolCallsEnable === undefined
+        ? null
+        : novel.translationToolCallsEnable === null
+          ? null
+          : novel.translationToolCallsEnable
+            ? 1
+            : 0,
       novel.maxTokens ?? null,
       novel.maxTranslationOutputTokens ?? null,
       novel.maxQualityCheckOutputTokens ?? null,

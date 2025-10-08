@@ -5,12 +5,20 @@ export const saveNovel = async (
   novel: Novel | NovelWithChapters,
 ): Promise<void> => {
   try {
+    const payload = {
+      ...novel,
+      translationToolCallsEnable:
+        typeof novel.translationToolCallsEnable === 'boolean' || novel.translationToolCallsEnable === null
+          ? novel.translationToolCallsEnable
+          : null,
+    };
+
     if (novel.id && (await getNovel(novel.id))) {
       // Update existing novel
-      await axios.put(`/api/novels?id=${novel.id}`, novel);
+      await axios.put(`/api/novels?id=${novel.id}`, payload);
     } else {
       // Create new novel
-      await axios.post('/api/novels', novel);
+      await axios.post('/api/novels', payload);
     }
   } catch (error) {
     console.error('Failed to save novel:', error);
