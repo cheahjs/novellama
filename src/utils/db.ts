@@ -75,6 +75,20 @@ function initializeDb() {
     )
   `);
 
+  // Migrate existing references table columns if needed
+  const existingReferenceColumns = db.prepare(`PRAGMA table_info("references")`).all() as Array<{ name: string }>;
+  const referenceColumnNames = new Set(existingReferenceColumns.map((c) => c.name));
+  const addReferenceColumnIfMissing = (name: string, type: 'INTEGER' | 'TEXT') => {
+    if (!referenceColumnNames.has(name)) {
+      db.exec(`ALTER TABLE "references" ADD COLUMN ${name} ${type}`);
+      referenceColumnNames.add(name);
+    }
+  };
+  addReferenceColumnIfMissing('createdAt', 'INTEGER');
+  addReferenceColumnIfMissing('updatedAt', 'INTEGER');
+  addReferenceColumnIfMissing('createdInChapterNumber', 'INTEGER');
+  addReferenceColumnIfMissing('updatedInChapterNumber', 'INTEGER');
+
   // Create reference_revisions table
   db.exec(`
     CREATE TABLE IF NOT EXISTS reference_revisions (
