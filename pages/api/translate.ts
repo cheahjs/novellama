@@ -308,6 +308,13 @@ Remember: Your response must contain ONLY the improved translation text.`;
 - Allowed ops: "reference.add", "reference.update".
 - Prefer using existing reference \"id\" for updates; otherwise use exact \"title\".
 - Keep each op concise. Do not include this block if there are no changes.
+- Example:
+\`\`\`toolcalls
+{"reference_ops": [
+  {"type": "reference.add", "title": "John Doe", "content": "John Doe is a character in the story."},
+  {"type": "reference.update", "id": "123", "title": "Jane Doe", "content": "Jane Doe is a character in the story."}
+]}
+\`\`\`
 
 Use references to keep track of information that would be helpful for future translations, such as character names, locations, etc.`;
 
