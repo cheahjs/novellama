@@ -137,6 +137,67 @@ async function performTranslation({
   );
 }
 
+async function applyReferenceToolCalls({
+  novel,
+  toolCalls,
+  chapterNumber,
+  setNovel,
+}: {
+  novel: Novel;
+  toolCalls: ReferenceOp[];
+  chapterNumber: number;
+  setNovel: (novel: Novel | null) => void;
+}): Promise<Novel> {
+  if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+    return novel;
+  }
+
+  try {
+    const updatedNovel: Novel = { ...novel };
+    const ops = toolCalls as ReferenceOp[];
+    const now = Date.now();
+    
+    for (const op of ops) {
+      if (op.type === 'reference.add') {
+        if (!op.title || !op.content) continue;
+        const id = `ref_${now}_${Math.random().toString(36).slice(2, 8)}`;
+        updatedNovel.references.push({
+          id,
+          novelId: updatedNovel.id,
+          title: op.title,
+          content: op.content,
+          tokenCount: undefined,
+          createdAt: now,
+          updatedAt: now,
+          createdInChapterNumber: chapterNumber,
+          updatedInChapterNumber: chapterNumber,
+        });
+      } else if (op.type === 'reference.update') {
+        const idx = updatedNovel.references.findIndex((r) =>
+          op.id ? r.id === op.id : (op.title ? r.title === op.title : false),
+        );
+        if (idx >= 0) {
+          if (typeof op.title === 'string') {
+            updatedNovel.references[idx].title = op.title;
+          }
+          if (typeof op.content === 'string') {
+            updatedNovel.references[idx].content = op.content;
+          }
+          updatedNovel.references[idx].updatedAt = now;
+          (updatedNovel.references[idx] as unknown as { updatedInChapterNumber?: number | null }).updatedInChapterNumber = chapterNumber;
+        }
+      }
+    }
+    
+    await saveNovel(updatedNovel);
+    setNovel(updatedNovel);
+    return updatedNovel;
+  } catch (e) {
+    console.warn('Failed to auto-apply reference toolCalls; ignoring.', e);
+    return novel;
+  }
+}
+
 async function saveChapter({
   novel,
   chapter,
@@ -536,48 +597,14 @@ export default function TranslatePage() {
       });
 
       // Optionally apply reference tool-calls if provided by the model
-      if (Array.isArray(result.toolCalls) && result.toolCalls.length > 0) {
-        try {
-          const updatedNovel: Novel = { ...novel } as Novel;
-          const ops = result.toolCalls as ReferenceOp[];
-          const now = Date.now();
-          const chapterNum = currentChapter ? currentChapter.number : currentChapterNumber;
-          for (const op of ops) {
-            if (op.type === 'reference.add') {
-              if (!op.title || !op.content) continue;
-              const id = `ref_${now}_${Math.random().toString(36).slice(2, 8)}`;
-              updatedNovel.references.push({
-                id,
-                novelId: updatedNovel.id,
-                title: op.title,
-                content: op.content,
-                tokenCount: undefined,
-                createdAt: now,
-                updatedAt: now,
-                createdInChapterNumber: chapterNum,
-                updatedInChapterNumber: chapterNum,
-              });
-            } else if (op.type === 'reference.update') {
-              const idx = updatedNovel.references.findIndex((r) =>
-                op.id ? r.id === op.id : (op.title ? r.title === op.title : false),
-              );
-              if (idx >= 0) {
-                if (typeof op.title === 'string') {
-                  updatedNovel.references[idx].title = op.title;
-                }
-                if (typeof op.content === 'string') {
-                  updatedNovel.references[idx].content = op.content;
-                }
-                updatedNovel.references[idx].updatedAt = now;
-                (updatedNovel.references[idx] as unknown as { updatedInChapterNumber?: number | null }).updatedInChapterNumber = chapterNum;
-              }
-            }
-          }
-          await saveNovel(updatedNovel);
-          setNovel(updatedNovel);
-        } catch (e) {
-          console.warn('Failed to auto-apply reference toolCalls; ignoring.', e);
-        }
+      if (result.toolCalls && result.toolCalls.length > 0) {
+        const chapterNum = currentChapter ? currentChapter.number : currentChapterNumber;
+        await applyReferenceToolCalls({
+          novel,
+          toolCalls: result.toolCalls,
+          chapterNumber: chapterNum,
+          setNovel,
+        });
       }
 
       toast.dismiss(toastId);
@@ -619,6 +646,7 @@ export default function TranslatePage() {
     );
 
     try {
+      let currentNovel = novel; // Track the current novel state to get updated references
       for (let i = 0; i < count && !shouldCancelBatch; i++) {
         const targetChapterNumber = startingChapter + i;
         const progress = Math.round(((i + 1) / count) * 100);
@@ -629,14 +657,14 @@ export default function TranslatePage() {
         );
 
         const { title, content } = await scrapeChapter(
-          novel.sourceUrl,
+          currentNovel.sourceUrl,
           targetChapterNumber,
         );
         const sourceContent = `# ${title}\n\n${content}`;
 
         const result = await performTranslation({
           sourceContent,
-          novelId: novel.id,
+          novelId: currentNovel.id,
           useAutoRetry,
           toastId,
           maxAttempts,
@@ -661,12 +689,22 @@ export default function TranslatePage() {
         };
 
         await saveChapter({
-          novel,
+          novel: currentNovel,
           chapter: newChapter,
           setLoadedChapters,
           setChapterMetadata,
           setNovel,
         });
+
+        // Apply reference tool calls if provided by the model
+        if (result.toolCalls && result.toolCalls.length > 0) {
+          currentNovel = await applyReferenceToolCalls({
+            novel: currentNovel,
+            toolCalls: result.toolCalls,
+            chapterNumber: targetChapterNumber,
+            setNovel,
+          });
+        }
       }
 
       toast.dismiss(toastId);
@@ -728,6 +766,7 @@ export default function TranslatePage() {
         return newChapters.sort((a, b) => a.number - b.number);
       });
 
+      let currentNovel = novel; // Track the current novel state to get updated references
       for (let i = startChapter; i <= endChapter && !shouldCancelBatch; i++) {
         const progress = Math.round(
           ((i - startChapter + 1) / (endChapter - startChapter + 1)) * 100,
@@ -745,12 +784,12 @@ export default function TranslatePage() {
           throw new Error(`Chapter ${i} not found`);
         }
 
-        const { title, content } = await scrapeChapter(novel.sourceUrl, i);
+        const { title, content } = await scrapeChapter(currentNovel.sourceUrl, i);
         const sourceContent = `# ${title}\n\n${content}`;
 
         const result = await performTranslation({
           sourceContent,
-          novelId: novel.id,
+          novelId: currentNovel.id,
           currentChapterId: existingChapter.id,
           useAutoRetry,
           toastId,
@@ -774,12 +813,22 @@ export default function TranslatePage() {
         };
 
         await saveChapter({
-          novel,
+          novel: currentNovel,
           chapter: updatedChapter,
           setLoadedChapters,
           setChapterMetadata,
           setNovel,
         });
+
+        // Apply reference tool calls if provided by the model
+        if (result.toolCalls && result.toolCalls.length > 0) {
+          currentNovel = await applyReferenceToolCalls({
+            novel: currentNovel,
+            toolCalls: result.toolCalls,
+            chapterNumber: i,
+            setNovel,
+          });
+        }
       }
 
       toast.dismiss(toastId);
