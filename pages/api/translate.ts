@@ -311,8 +311,8 @@ Remember: Your response must contain ONLY the improved translation text.`;
 - Example:
 \`\`\`toolcalls
 {"reference_ops": [
-  {"type": "reference.add", "title": "John Doe", "content": "John Doe is a character in the story."},
-  {"type": "reference.update", "id": "123", "title": "Jane Doe", "content": "Jane Doe is a character in the story."}
+  {"type": "reference.add", "title": "John Doe", "content": "John Doe (ジョン・ドゥ) is a character in the story."},
+  {"type": "reference.update", "id": "123", "title": "Jane Doe", "content": "Jane Doe (ジェーン・ドウ) is a character in the story."}
 ]}
 \`\`\`
 
