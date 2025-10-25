@@ -140,7 +140,7 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete, onReorder }) =>
           </div>
           <div className="mt-4 flex items-center justify-between">
             <Link
-              href={`/translate/${novel.id}`}
+              href={`/translate/${novel.slug || novel.id}`}
               className="flex items-center text-blue-600 hover:underline"
             >
               <FiEdit className="mr-1" /> Continue
@@ -173,7 +173,7 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete, onReorder }) =>
                 {chapterTOC[novel.id].map((chapter) => (
                   <Link
                     key={chapter.number}
-                    href={`/translate/${novel.id}/${chapter.number}`}
+                    href={`/translate/${novel.slug || novel.id}/${chapter.number}`}
                     className="block py-1 text-sm text-gray-600 hover:text-blue-600"
                   >
                     {chapter.title

@@ -16,6 +16,7 @@ export default function NewNovel() {
     targetLanguage: '',
     systemPrompt:
       'You are a skilled literary translator. Translate the following text from the source language to the target language. Maintain the tone, style, and cultural nuances where possible. Use appropriate idiomatic expressions in the target language.',
+    slug: '',
   });
 
   const handleChange = (
@@ -37,13 +38,14 @@ export default function NewNovel() {
         systemPrompt: formData.systemPrompt,
         references: undefined,
         sortOrder: Date.now(),
+        slug: formData.slug?.trim() || undefined,
       };
 
       const response = await axios.post('/api/novels', newNovel);
       toast.success('Novel created successfully');
 
       // Redirect to the translation page
-      router.push(`/translate/${response.data.id}`);
+      router.push(`/translate/${response.data.slug || response.data.id}`);
     } catch (error) {
       console.error('Failed to create novel:', error);
       toast.error('Failed to create novel');
@@ -87,6 +89,26 @@ export default function NewNovel() {
               required
               disabled={isSubmitting}
             />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Vanity ID (optional)
+            </label>
+            <input
+              type="text"
+              name="slug"
+              value={formData.slug}
+              onChange={handleChange}
+              className="w-full rounded border p-2"
+              placeholder="e.g., shangrila-frontier"
+              pattern="[a-z0-9-]{1,64}"
+              title="Use lowercase letters, numbers, and hyphens only"
+              disabled={isSubmitting}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Leave blank to auto-generate from the title.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

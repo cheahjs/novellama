@@ -11,6 +11,7 @@ import type { Novel, Reference } from '@/types';
 type ToolCallOverrideOption = 'inherit' | 'enabled' | 'disabled';
 
 interface SettingsFormState {
+  slug: string;
   title: string;
   sourceLanguage: string;
   targetLanguage: string;
@@ -41,6 +42,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
 }) => {
   const { config } = useConfig();
   const initialForm = useMemo<SettingsFormState>(() => ({
+    slug: novel.slug || '',
     title: novel.title,
     sourceLanguage: novel.sourceLanguage,
     targetLanguage: novel.targetLanguage,
@@ -148,6 +150,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     e.preventDefault();
     // Normalize numeric fields (empty string => null)
     const normalized: Partial<Novel> = {
+      slug: formData.slug.trim().length > 0 ? formData.slug.trim() : null,
       title: formData.title,
       sourceLanguage: formData.sourceLanguage,
       targetLanguage: formData.targetLanguage,
@@ -241,6 +244,23 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Vanity ID</label>
+            <input
+              type="text"
+              name="slug"
+              value={formData.slug}
+              onChange={handleChange}
+              className="w-full rounded border p-2"
+              placeholder="e.g., shangrila-frontier"
+              pattern="[a-z0-9-]{1,64}"
+              title="Use lowercase letters, numbers, and hyphens only"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Leave blank to auto-generate from the title.
+            </p>
+          </div>
+
           <div>
             <label className="mb-1 block text-sm font-medium">Title</label>
             <input

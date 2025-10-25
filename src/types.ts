@@ -54,6 +54,7 @@ export interface Reference {
 
 export interface Novel {
   id: string;
+  slug?: string | null;
   title: string;
   sourceLanguage: string;
   targetLanguage: string;

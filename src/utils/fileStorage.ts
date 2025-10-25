@@ -6,6 +6,7 @@ import {
 } from '@/types';
 import getDb from './db';
 import { nanoid } from 'nanoid';
+import slugify from 'slugify';
 
 // Read all novels from database (without chapters)
 export async function readNovels(): Promise<Novel[]> {
@@ -39,7 +40,7 @@ export async function readNovels(): Promise<Novel[]> {
 
 // Get a single novel by ID with optional chapter range
 export async function getNovelById(
-  id: string,
+  idOrSlug: string,
   chapterRange?: { start: number; end: number },
 ): Promise<NovelWithChapters | null> {
   const db = getDb();
@@ -48,25 +49,26 @@ export async function getNovelById(
   const novel = db
     .prepare(
       `
-    SELECT * FROM novels WHERE id = ?
+    SELECT * FROM novels WHERE id = ? OR slug = ?
   `,
     )
-    .get(id) as Novel | undefined;
+    .get(idOrSlug, idOrSlug) as Novel | undefined;
 
-  if (!novel) return null;
+  const targetNovel = novel;
+  if (!targetNovel) return null;
 
   // Get references
-  novel.references = db
+  targetNovel.references = db
     .prepare(
       `
     SELECT * FROM "references" WHERE novelId = ?
   `,
     )
-    .all(id) as Reference[];
+    .all(targetNovel.id) as Reference[];
 
   // Only fetch chapters if a range is specified
   if (!chapterRange) {
-    return { ...novel, chapters: [] };
+    return { ...targetNovel, chapters: [] };
   }
 
   // Get chapters based on range
@@ -102,7 +104,7 @@ export async function getNovelById(
 
   const rows = db
     .prepare(chaptersQuery)
-    .all(id, chapterRange.start, chapterRange.end) as ChapterRow[];
+    .all(targetNovel.id, chapterRange.start, chapterRange.end) as ChapterRow[];
 
   const chapters = rows.map((row) => {
     const chapter: TranslationChapter = {
@@ -126,7 +128,7 @@ export async function getNovelById(
     return chapter;
   });
 
-  return { ...novel, chapters };
+  return { ...targetNovel, chapters };
 }
 
 // Save a novel (create or update)
@@ -140,18 +142,37 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       ? novel.references
       : [];
 
+    const hasSlug = typeof novel.slug === 'string' && novel.slug.trim().length > 0;
+    const slugCandidate = hasSlug
+      ? slugify(novel.slug as string, { lower: true, strict: true, trim: true })
+      : null;
+    const normalizedSlug = slugCandidate && slugCandidate.length > 0 ? slugCandidate : null;
+
+    const existingBySlug = normalizedSlug
+      ? db
+          .prepare(
+            `SELECT id FROM novels WHERE slug = ? AND id != ? LIMIT 1`,
+          )
+          .get(normalizedSlug, novel.id)
+      : null;
+
+    if (existingBySlug) {
+      throw new Error(`Slug "${normalizedSlug}" is already in use.`);
+    }
+
     // Upsert novel
     db.prepare(
       `
       INSERT INTO novels (
-        id, title, sourceLanguage, targetLanguage,
+        id, slug, title, sourceLanguage, targetLanguage,
         systemPrompt, sourceUrl, translationTemplate,
         translationModel, qualityCheckModel,
         translationToolCallsEnable,
         maxTokens, maxTranslationOutputTokens, maxQualityCheckOutputTokens,
         chapterCount, createdAt, updatedAt, sortOrder
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        slug = excluded.slug,
         title = excluded.title,
         sourceLanguage = excluded.sourceLanguage,
         targetLanguage = excluded.targetLanguage,
@@ -170,6 +191,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
     `,
     ).run(
       novel.id,
+      normalizedSlug,
       novel.title,
       novel.sourceLanguage,
       novel.targetLanguage,
@@ -244,6 +266,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       );
     }
 
+    novel.slug = normalizedSlug;
     return novel;
   });
 

@@ -28,6 +28,7 @@ function initializeDb() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS novels (
       id TEXT PRIMARY KEY,
+      slug TEXT,
       title TEXT NOT NULL,
       sourceLanguage TEXT NOT NULL,
       targetLanguage TEXT NOT NULL,
@@ -56,6 +57,7 @@ function initializeDb() {
       columnNames.add(name);
     }
   };
+  addColumnIfMissing('slug', 'TEXT');
   addColumnIfMissing('translationModel', 'TEXT');
   addColumnIfMissing('qualityCheckModel', 'TEXT');
   addColumnIfMissing('translationToolCallsEnable', 'INTEGER');

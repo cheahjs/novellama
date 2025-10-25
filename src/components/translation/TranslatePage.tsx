@@ -419,18 +419,42 @@ export default function TranslatePage() {
   );
 
   const loadNovel = useCallback(
-    async (novelId?: string) => {
-      if (!novelId) return;
+    async (novelIdOrSlug?: string) => {
+      if (!novelIdOrSlug) return;
 
       NProgress.start();
       try {
         // First load the novel metadata
-        const loadedNovel = await getNovel(novelId);
+        const loadedNovel = await getNovel(novelIdOrSlug);
         if (loadedNovel) {
           setNovel(loadedNovel);
 
-          // Load chapter metadata
-          const metadata = await loadChapterMetadata(novelId);
+          // If we loaded by slug, ensure our URLs and calls use the canonical id
+          const canonicalSegment = loadedNovel.slug || loadedNovel.id;
+          if (router.isReady) {
+            const currentPathWithoutQuery = router.asPath.split('?')[0];
+            const expectedBase = `/translate/${canonicalSegment}`;
+
+            if (
+              currentPathWithoutQuery !== expectedBase &&
+              !currentPathWithoutQuery.startsWith(`${expectedBase}/`)
+            ) {
+              router.replace(
+                {
+                  pathname: expectedBase,
+                  query: router.query.chapter
+                    ? { chapter: router.query.chapter }
+                    : undefined,
+                },
+                undefined,
+                { shallow: true },
+              );
+            }
+          }
+
+          // Load chapter metadata using canonical id
+          const canonicalId = loadedNovel.id;
+          const metadata = await loadChapterMetadata(canonicalId);
 
           // Determine initial chapter number
           let initialChapterNumber = 1;
@@ -453,7 +477,7 @@ export default function TranslatePage() {
           setCurrentChapterNumber(initialChapterNumber);
 
           // Always load initial chapters on first load or chapter change
-          await loadChapters(novelId, initialChapterNumber - 1);
+          await loadChapters(canonicalId, initialChapterNumber - 1);
         } else {
           toast.error('Novel not found');
           router.push('/');
@@ -899,10 +923,10 @@ export default function TranslatePage() {
       // Update URL without reloading
       router.push(
         {
-          pathname: router.pathname,
-          query: { ...router.query, chapter: chapterNumber },
+          pathname: `/translate/${novel.slug || novel.id}`,
+          query: { chapter: chapterNumber },
         },
-        undefined,
+        `/translate/${novel.slug || novel.id}/${chapterNumber}`,
         { shallow: true },
       );
 

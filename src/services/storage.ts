@@ -27,13 +27,13 @@ export const saveNovel = async (
 };
 
 export const getNovel = async (
-  id: string,
+  idOrSlug: string,
   chapterRange?: { start: number; end: number },
   req?: { headers: { host?: string } },
 ): Promise<NovelWithChapters | null> => {
   try {
     const params = new URLSearchParams();
-    params.append('id', id);
+    params.append('id', idOrSlug);
     if (chapterRange) {
       params.append('chapterStart', chapterRange.start.toString());
       params.append('chapterEnd', chapterRange.end.toString());

@@ -7,6 +7,7 @@ import {
   deleteNovel,
 } from '@/utils/fileStorage';
 import { nanoid } from 'nanoid';
+import slugify from 'slugify';
 
 export const config = {
   api: {
@@ -22,7 +23,7 @@ export default async function handler(
 ) {
   try {
     switch (req.method) {
-      case 'GET':
+      case 'GET': {
         // Get all novels or a specific novel
         if (req.query.id) {
           const chapterRange =
@@ -44,12 +45,32 @@ export default async function handler(
         }
         const novels = await readNovels();
         return res.status(200).json(novels);
+      }
 
-      case 'POST':
+      case 'POST': {
         // Create a new novel
         const body = req.body;
+        const slugCandidate = body.slug
+          ? slugify(body.slug, {
+              lower: true,
+              strict: true,
+              trim: true,
+            })
+          : null;
+        const fallbackSlug = slugify(body.title, {
+          lower: true,
+          strict: true,
+          trim: true,
+        });
+        const normalizedSlug = slugCandidate && slugCandidate.length > 0
+          ? slugCandidate
+          : fallbackSlug && fallbackSlug.length > 0
+            ? fallbackSlug
+            : null;
+
         const novel: Novel = {
           id: nanoid(),
+          slug: normalizedSlug,
           title: body.title,
           sourceLanguage: body.sourceLanguage,
           targetLanguage: body.targetLanguage,
@@ -68,10 +89,19 @@ export default async function handler(
           maxQualityCheckOutputTokens: body.maxQualityCheckOutputTokens ?? null,
           sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : Date.now(),
         };
-        await saveNovel(novel);
-        return res.status(201).json(novel);
+        try {
+          await saveNovel(novel);
+          return res.status(201).json(novel);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to create novel';
+          if (typeof message === 'string' && message.includes('Slug')) {
+            return res.status(409).json({ message });
+          }
+          throw error;
+        }
+      }
 
-      case 'PUT':
+      case 'PUT': {
         // Update a novel
         const { id } = req.query;
         const existingNovel = await getNovelById(id as string);
@@ -79,21 +109,50 @@ export default async function handler(
           return res.status(404).json({ message: 'Novel not found' });
         }
 
+        const slugCandidate =
+          typeof req.body.slug === 'string'
+            ? slugify(req.body.slug, {
+                lower: true,
+                strict: true,
+                trim: true,
+              })
+            : existingNovel.slug;
+        const updatedSlug = slugCandidate && slugCandidate.length > 0 ? slugCandidate : null;
+
         const updatedNovel = {
           ...existingNovel,
           ...req.body,
+          slug: updatedSlug,
           sortOrder:
             typeof req.body.sortOrder === 'number'
               ? req.body.sortOrder
               : existingNovel.sortOrder,
           updatedAt: Date.now(),
         };
-        await saveNovel(updatedNovel);
-        return res.status(200).json(updatedNovel);
+        try {
+          await saveNovel(updatedNovel);
+          return res.status(200).json(updatedNovel);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to update novel';
+          if (typeof message === 'string' && message.includes('Slug')) {
+            return res.status(409).json({ message });
+          }
+          throw error;
+        }
+      }
 
       case 'DELETE':
         // Delete a novel
-        await deleteNovel(req.query.id as string);
+        if (!req.query.id || typeof req.query.id !== 'string') {
+          return res.status(400).json({ message: 'Invalid novel ID' });
+        }
+
+        const novelToDelete = await getNovelById(req.query.id);
+        if (!novelToDelete) {
+          return res.status(404).json({ message: 'Novel not found' });
+        }
+
+        await deleteNovel(novelToDelete.id);
         return res.status(204).end();
 
       default:
