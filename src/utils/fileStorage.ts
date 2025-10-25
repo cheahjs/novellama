@@ -17,6 +17,7 @@ export async function readNovels(): Promise<Novel[]> {
     FROM novels n
     LEFT JOIN "references" r ON n.id = r.novelId
     GROUP BY n.id
+    ORDER BY n.sortOrder ASC, n.createdAt ASC
   `,
     )
     .all() as Novel[];
@@ -135,6 +136,10 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
 
   // Start transaction
   const transaction = db.transaction((novel: Novel) => {
+    const references = Array.isArray(novel.references)
+      ? novel.references
+      : [];
+
     // Upsert novel
     db.prepare(
       `
@@ -144,8 +149,8 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         translationModel, qualityCheckModel,
         translationToolCallsEnable,
         maxTokens, maxTranslationOutputTokens, maxQualityCheckOutputTokens,
-        chapterCount, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        chapterCount, createdAt, updatedAt, sortOrder
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         sourceLanguage = excluded.sourceLanguage,
@@ -160,7 +165,8 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         maxTranslationOutputTokens = excluded.maxTranslationOutputTokens,
         maxQualityCheckOutputTokens = excluded.maxQualityCheckOutputTokens,
         chapterCount = excluded.chapterCount,
-        updatedAt = excluded.updatedAt
+        updatedAt = excluded.updatedAt,
+        sortOrder = excluded.sortOrder
     `,
     ).run(
       novel.id,
@@ -183,8 +189,9 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       novel.maxTranslationOutputTokens ?? null,
       novel.maxQualityCheckOutputTokens ?? null,
       novel.chapterCount || 0,
-      now,
-      now,
+      novel.createdAt ?? now,
+      novel.updatedAt ?? now,
+      typeof novel.sortOrder === 'number' ? novel.sortOrder : now,
     );
 
     // Upsert references without deleting existing, to preserve history.
@@ -207,7 +214,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       ) VALUES (?, ?, ?, ?, ?, ?)
     `);
 
-    for (const ref of novel.references) {
+    for (const ref of references) {
       const createdAt = ref.createdAt || now;
       const updatedAt = ref.updatedAt || now;
       const createdInChapterNumber = (ref as { createdInChapterNumber?: number | null }).createdInChapterNumber ?? null;

@@ -66,6 +66,7 @@ export default async function handler(
           maxTokens: body.maxTokens ?? null,
           maxTranslationOutputTokens: body.maxTranslationOutputTokens ?? null,
           maxQualityCheckOutputTokens: body.maxQualityCheckOutputTokens ?? null,
+          sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : Date.now(),
         };
         await saveNovel(novel);
         return res.status(201).json(novel);
@@ -81,6 +82,10 @@ export default async function handler(
         const updatedNovel = {
           ...existingNovel,
           ...req.body,
+          sortOrder:
+            typeof req.body.sortOrder === 'number'
+              ? req.body.sortOrder
+              : existingNovel.sortOrder,
           updatedAt: Date.now(),
         };
         await saveNovel(updatedNovel);

@@ -1,4 +1,4 @@
-import { Novel, NovelWithChapters, TranslationChapter, ChapterRevision } from '@/types';
+import { Novel, NovelWithChapters, TranslationChapter, ChapterRevision, NovelSortUpdate } from '@/types';
 import axios from 'axios';
 
 export const saveNovel = async (
@@ -155,6 +155,15 @@ export const importChapters = async (
     { headers: { 'Content-Type': 'application/json' } },
   );
   return response.data;
+};
+
+export const updateNovelOrder = async (novels: NovelSortUpdate[]): Promise<void> => {
+  try {
+    await axios.put('/api/novels/order', novels);
+  } catch (error) {
+    console.error('Failed to update novel order:', error);
+    throw error;
+  }
 };
 
 export const getChapterRevisions = async (

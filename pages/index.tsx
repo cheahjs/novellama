@@ -1,34 +1,69 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { FiPlus } from 'react-icons/fi';
 import NovelList from '@/components/novel/NovelList';
-import { Novel } from '@/types';
-import { getNovels, deleteNovel } from '@/services/storage';
+import { Novel, NovelSortUpdate } from '@/types';
+import { getNovels, deleteNovel, updateNovelOrder } from '@/services/storage';
 import { toast, Toaster } from 'react-hot-toast';
 
 export default function Home() {
   const [novels, setNovels] = useState<Novel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [queue, setQueue] = useState<NovelSortUpdate[][]>([]);
 
   useEffect(() => {
-    // Load novels from the server
+    let isMounted = true;
+
     const loadNovels = async () => {
       try {
         const loadedNovels = await getNovels();
-        setNovels(loadedNovels);
+        if (isMounted) {
+          setNovels(loadedNovels);
+        }
       } catch (error) {
         toast.error('Failed to load novels');
         console.error('Error loading novels:', error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     loadNovels();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const handleDelete = async (id: string) => {
+  useEffect(() => {
+    if (queue.length === 0 || isSavingOrder) {
+      return;
+    }
+
+    const nextOrder = queue[0];
+
+    const saveOrder = async () => {
+      setIsSavingOrder(true);
+      try {
+        await updateNovelOrder(nextOrder);
+        toast.success('Order updated');
+      } catch (error) {
+        toast.error('Failed to save order');
+        console.error('Error saving novel order:', error);
+      } finally {
+        setQueue((prev) => prev.slice(1));
+        setIsSavingOrder(false);
+      }
+    };
+
+    saveOrder();
+  }, [queue, isSavingOrder]);
+
+  const handleDelete = useCallback(async (id: string) => {
     if (
       confirm(
         'Are you sure you want to delete this novel? This action cannot be undone.',
@@ -43,7 +78,7 @@ export default function Home() {
         console.error('Error deleting novel:', error);
       }
     }
-  };
+  }, [novels]);
 
   return (
     <div>
@@ -77,7 +112,19 @@ export default function Home() {
           <div className="mt-8 text-center">Loading novels...</div>
         ) : (
           <>
-            <NovelList novels={novels} onDelete={handleDelete} />
+            <NovelList
+              novels={novels}
+              onDelete={handleDelete}
+              onReorder={(ordered) => {
+                setNovels((prev) =>
+                  prev.map((novel) => {
+                    const update = ordered.find((item) => item.id === novel.id);
+                    return update ? { ...novel, sortOrder: update.sortOrder } : novel;
+                  }),
+                );
+                setQueue((prev) => [...prev, ordered]);
+              }}
+            />
 
             {novels.length === 0 && (
               <div className="mt-8 text-center">

@@ -34,6 +34,7 @@ function initializeDb() {
       systemPrompt TEXT NOT NULL,
       sourceUrl TEXT NOT NULL,
       translationTemplate TEXT,
+      sortOrder INTEGER NOT NULL DEFAULT 0,
       translationModel TEXT,
       qualityCheckModel TEXT,
       translationToolCallsEnable INTEGER,
@@ -52,6 +53,7 @@ function initializeDb() {
   const addColumnIfMissing = (name: string, type: 'TEXT' | 'INTEGER') => {
     if (!columnNames.has(name)) {
       db.exec(`ALTER TABLE novels ADD COLUMN ${name} ${type}`);
+      columnNames.add(name);
     }
   };
   addColumnIfMissing('translationModel', 'TEXT');
@@ -60,6 +62,7 @@ function initializeDb() {
   addColumnIfMissing('maxTokens', 'INTEGER');
   addColumnIfMissing('maxTranslationOutputTokens', 'INTEGER');
   addColumnIfMissing('maxQualityCheckOutputTokens', 'INTEGER');
+  addColumnIfMissing('sortOrder', 'INTEGER');
 
   // Create references table
   db.exec(`

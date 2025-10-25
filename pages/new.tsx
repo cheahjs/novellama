@@ -36,6 +36,7 @@ export default function NewNovel() {
         targetLanguage: formData.targetLanguage,
         systemPrompt: formData.systemPrompt,
         references: undefined,
+        sortOrder: Date.now(),
       };
 
       const response = await axios.post('/api/novels', newNovel);

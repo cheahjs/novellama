@@ -63,6 +63,7 @@ export interface Novel {
   chapterCount: number; // Track total number of chapters
   createdAt: number;
   updatedAt: number;
+  sortOrder: number;
   translationTemplate?: string;
   // Optional per-novel model configuration (enabled via env flag)
   translationModel?: string | null;
@@ -73,6 +74,11 @@ export interface Novel {
   maxTokens?: number | null; // Context truncation token limit
   maxTranslationOutputTokens?: number | null;
   maxQualityCheckOutputTokens?: number | null;
+}
+
+export interface NovelSortUpdate {
+  id: string;
+  sortOrder: number;
 }
 
 export interface NovelWithChapters extends Novel {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   FiBook,
@@ -7,12 +7,13 @@ import {
   FiChevronDown,
   FiChevronUp,
 } from 'react-icons/fi';
-import { Novel } from '@/types';
+import { Novel, NovelSortUpdate } from '@/types';
 import { getChapterTOC } from '@/services/storage';
 
 interface NovelListProps {
   novels: Novel[];
   onDelete: (id: string) => void;
+  onReorder: (updates: NovelSortUpdate[]) => void;
 }
 
 interface ChapterMetadata {
@@ -20,11 +21,28 @@ interface ChapterMetadata {
   title: string;
 }
 
-const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
+const NovelList: React.FC<NovelListProps> = ({ novels, onDelete, onReorder }) => {
   const [expandedNovel, setExpandedNovel] = useState<string | null>(null);
-  const [chapterTOC, setChapterTOC] = useState<
-    Record<string, ChapterMetadata[]>
-  >({});
+  const [chapterTOC, setChapterTOC] = useState<Record<string, ChapterMetadata[]>>({});
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  const orderedNovels = useMemo(() => {
+    const normalize = (value: number | null | undefined, fallback: number) =>
+      typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
+    return [...novels].sort((a, b) => {
+      const aOrder = normalize(a.sortOrder, Number.MAX_SAFE_INTEGER);
+      const bOrder = normalize(b.sortOrder, Number.MAX_SAFE_INTEGER);
+
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+
+      const aCreated = normalize(a.createdAt, Number.MAX_SAFE_INTEGER);
+      const bCreated = normalize(b.createdAt, Number.MAX_SAFE_INTEGER);
+      return aCreated - bCreated;
+    });
+  }, [novels]);
 
   useEffect(() => {
     const loadTOC = async (novelId: string) => {
@@ -39,7 +57,56 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
     }
   }, [expandedNovel, chapterTOC]);
 
-  if (!novels || novels.length === 0) {
+  const handleDragStart = (
+    event: React.DragEvent<HTMLDivElement>,
+    novelId: string,
+  ) => {
+    // Required for Firefox to allow dropping
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', novelId);
+    setDraggedId(novelId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+  };
+
+  const handleDrop = (
+    event: React.DragEvent<HTMLDivElement>,
+    targetId: string,
+  ) => {
+    event.preventDefault();
+    const activeId = draggedId ?? event.dataTransfer.getData('text/plain');
+    if (!activeId || activeId === targetId) {
+      handleDragEnd();
+      return;
+    }
+
+    const currentOrder = orderedNovels.map((novel) => novel.id);
+    const fromIndex = currentOrder.indexOf(activeId);
+    const toIndex = currentOrder.indexOf(targetId);
+    if (fromIndex === -1 || toIndex === -1) {
+      handleDragEnd();
+      return;
+    }
+
+    const reordered = [...currentOrder];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+
+    const updates = reordered.map((id, index) => ({
+      id,
+      sortOrder: index,
+    }));
+    onReorder(updates);
+    handleDragEnd();
+  };
+
+  if (!orderedNovels || orderedNovels.length === 0) {
     return (
       <div className="py-10 text-center">
         <FiBook className="mx-auto text-4xl text-gray-400" />
@@ -52,10 +119,17 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete }) => {
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {novels.map((novel) => (
+      {orderedNovels.map((novel) => (
         <div
           key={novel.id}
-          className="rounded-lg border p-4 transition hover:shadow-md"
+          className={`rounded-lg border p-4 transition hover:shadow-md ${
+            draggedId === novel.id ? 'border-blue-500 shadow-lg' : ''
+          }`}
+          draggable
+          onDragStart={(event) => handleDragStart(event, novel.id)}
+          onDragOver={handleDragOver}
+          onDrop={(event) => handleDrop(event, novel.id)}
+          onDragEnd={handleDragEnd}
         >
           <h3 className="text-lg font-bold">{novel.title}</h3>
           <div className="my-2 text-sm text-gray-500">
