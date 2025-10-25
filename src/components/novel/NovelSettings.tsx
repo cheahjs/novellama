@@ -139,19 +139,28 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
   ) => {
     if (!editingReferenceId) return;
 
-    const updatedReference: Reference = {
-      ...reference,
-      id: editingReferenceId,
-      updatedAt: Date.now(),
-      createdAt: formData.references.find(ref => ref.id === editingReferenceId)?.createdAt || Date.now(),
-    };
+    const updatedAt = Date.now();
 
-    setFormData((prev) => ({
-      ...prev,
-      references: prev.references.map((ref) =>
-        ref.id === editingReferenceId ? updatedReference : ref,
-      ),
-    }));
+    setFormData((prev) => {
+      let didUpdate = false;
+
+      const references = prev.references.map((ref) => {
+        if (ref.id !== editingReferenceId) {
+          return ref;
+        }
+
+        didUpdate = true;
+
+        return {
+          ...ref,
+          ...reference,
+          updatedAt,
+        } satisfies Reference;
+      });
+
+      return didUpdate ? { ...prev, references } : prev;
+    });
+
     setEditingReferenceId(null);
   };
 
