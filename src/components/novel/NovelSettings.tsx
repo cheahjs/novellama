@@ -125,6 +125,15 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
     setEditingReferenceId(updatedReference.id);
   };
 
+  const handleTokenCountUpdate = React.useCallback((id: string, tokenCount: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      references: prev.references.map((ref) =>
+        ref.id === id ? { ...ref, tokenCount, updatedAt: Date.now() } : ref,
+      ),
+    }));
+  }, []);
+
   const handleSaveEditedReference = (
     reference: Omit<Reference, 'id' | 'createdAt' | 'updatedAt' | 'tokenCount'>,
   ) => {
@@ -504,6 +513,7 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
                     reference={reference}
                     onDelete={handleDeleteReference}
                     onEdit={handleEditReference}
+                    onTokenCountUpdate={handleTokenCountUpdate}
                   />
                 )
               ))}

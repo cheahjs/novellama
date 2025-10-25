@@ -6,21 +6,24 @@ interface ReferenceItemProps {
   reference: Reference;
   onDelete?: (id: string) => void;
   onEdit?: (reference: Reference) => void;
+  onTokenCountUpdate?: (id: string, tokenCount: number) => void;
 }
+
 
 const ReferenceItem: React.FC<ReferenceItemProps> = ({
   reference,
   onDelete,
   onEdit,
+  onTokenCountUpdate,
 }) => {
   const { count, isLoading } = useTokenizer(reference.content);
 
   // Update reference.tokenCount if it's different from the calculated count
   React.useEffect(() => {
-    if (!isLoading && count !== null && count !== reference.tokenCount) {
-      reference.tokenCount = count;
-    }
-  }, [count, isLoading, reference]);
+    if (isLoading || count === null) return;
+    if (reference.tokenCount === count) return;
+    onTokenCountUpdate?.(reference.id, count);
+  }, [count, isLoading, onTokenCountUpdate, reference.id, reference.tokenCount]);
 
   return (
     <div className="reference-item mb-4 rounded-lg border p-4">
