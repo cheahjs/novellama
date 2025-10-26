@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM node:20-slim AS base
+FROM --platform=$BUILDPLATFORM node:22-slim AS base
 
 FROM base AS deps
 WORKDIR /app
@@ -12,7 +12,7 @@ COPY . .
 
 RUN npm run build
 
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
