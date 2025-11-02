@@ -433,20 +433,38 @@ export default function TranslatePage() {
           const canonicalSegment = loadedNovel.slug || loadedNovel.id;
           if (router.isReady) {
             const currentPathWithoutQuery = router.asPath.split('?')[0];
-            const expectedBase = `/translate/${canonicalSegment}`;
+            const currentChapterParam = Array.isArray(router.query.chapter)
+              ? router.query.chapter[0]
+              : router.query.chapter;
+            const expectedPath = currentChapterParam
+              ? `/translate/${canonicalSegment}/${currentChapterParam}`
+              : `/translate/${canonicalSegment}`;
 
-            if (
-              currentPathWithoutQuery !== expectedBase &&
-              !currentPathWithoutQuery.startsWith(`${expectedBase}/`)
-            ) {
+            if (currentPathWithoutQuery !== expectedPath) {
+              const nextQuery: Record<string, string> = {};
+              Object.entries(router.query).forEach(([key, value]) => {
+                if (typeof value === 'string') {
+                  nextQuery[key] = value;
+                } else if (Array.isArray(value) && value.length > 0) {
+                  nextQuery[key] = value[0];
+                }
+              });
+
+              nextQuery.id = canonicalSegment;
+              if (currentChapterParam) {
+                nextQuery.chapter = currentChapterParam;
+              } else {
+                delete nextQuery.chapter;
+              }
+
               router.replace(
                 {
-                  pathname: expectedBase,
-                  query: router.query.chapter
-                    ? { chapter: router.query.chapter }
-                    : undefined,
+                  pathname: currentChapterParam
+                    ? '/translate/[id]/[chapter]'
+                    : '/translate/[id]',
+                  query: nextQuery,
                 },
-                undefined,
+                expectedPath,
                 { shallow: true },
               );
             }
@@ -921,12 +939,13 @@ export default function TranslatePage() {
 
     try {
       // Update URL without reloading
-      router.push(
+      const slugOrId = novel.slug || novel.id;
+      await router.push(
         {
-          pathname: `/translate/${novel.slug || novel.id}`,
-          query: { chapter: chapterNumber },
+          pathname: '/translate/[id]/[chapter]',
+          query: { id: slugOrId, chapter: chapterNumber },
         },
-        `/translate/${novel.slug || novel.id}/${chapterNumber}`,
+        `/translate/${slugOrId}/${chapterNumber}`,
         { shallow: true },
       );
 
