@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FiSave, FiX } from 'react-icons/fi';
-import { FiDownload, FiUpload } from 'react-icons/fi';
+import { FiChevronDown, FiDownload, FiSave, FiUpload, FiX } from 'react-icons/fi';
 import ReferenceInput from '@/components/novel/ReferenceInput';
 import ReferenceItem from '@/components/novel/ReferenceItem';
 import LiveTokenCounter from '@/components/info/LiveTokenCounter';
@@ -79,16 +78,31 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
   const [showToolCallOverride, setShowToolCallOverride] = useState<boolean>(
     initialForm.translationToolCallsEnable !== 'inherit',
   );
+  const [areReferencesCollapsed, setAreReferencesCollapsed] = useState(true);
 
   useEffect(() => {
     setFormData(initialForm);
     setShowToolCallOverride(initialForm.translationToolCallsEnable !== 'inherit');
   }, [initialForm]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setAreReferencesCollapsed(true);
+    }
+  }, [isOpen]);
+
   const [editingReferenceId, setEditingReferenceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editingReferenceId) {
+      setAreReferencesCollapsed(false);
+    }
+  }, [editingReferenceId]);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
   const [importText, setImportText] = useState<string>('');
+  const referenceCount = formData.references.length;
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -498,36 +512,55 @@ const NovelSettings: React.FC<NovelSettingsProps> = ({
             </div>
           )}
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">References</label>
-            <div className="space-y-4">
-              {formData.references.map((reference) => (
-                editingReferenceId === reference.id ? (
-                  <div key={reference.id}>
-                    <ReferenceInput 
-                      onAdd={handleSaveEditedReference} 
-                      initialReference={reference}
+          <div className="rounded border border-gray-700">
+            <button
+              type="button"
+              onClick={() => setAreReferencesCollapsed((prev) => !prev)}
+              className="flex w-full items-center justify-between bg-gray-900 px-3 py-2 text-left"
+              aria-expanded={!areReferencesCollapsed}
+            >
+              <div>
+                <div className="text-sm font-medium">References</div>
+                <div className="text-xs text-gray-400">{referenceCount === 1 ? '1 item' : `${referenceCount} items`}</div>
+              </div>
+              <FiChevronDown
+                className={`h-5 w-5 transform transition-transform ${areReferencesCollapsed ? '-rotate-90' : 'rotate-0'}`}
+                aria-hidden
+              />
+            </button>
+            {!areReferencesCollapsed && (
+              <div className="space-y-4 border-t border-gray-800 p-3">
+                {referenceCount === 0 && (
+                  <p className="text-sm text-gray-400">No references added yet.</p>
+                )}
+                {formData.references.map((reference) =>
+                  editingReferenceId === reference.id ? (
+                    <div key={reference.id}>
+                      <ReferenceInput
+                        onAdd={handleSaveEditedReference}
+                        initialReference={reference}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingReferenceId(null)}
+                        className="mt-2 text-sm text-gray-500 hover:text-gray-700"
+                      >
+                        Cancel Edit
+                      </button>
+                    </div>
+                  ) : (
+                    <ReferenceItem
+                      key={reference.id}
+                      reference={reference}
+                      onDelete={handleDeleteReference}
+                      onEdit={handleEditReference}
+                      onTokenCountUpdate={handleTokenCountUpdate}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setEditingReferenceId(null)}
-                      className="mt-2 text-sm text-gray-500 hover:text-gray-700"
-                    >
-                      Cancel Edit
-                    </button>
-                  </div>
-                ) : (
-                  <ReferenceItem
-                    key={reference.id}
-                    reference={reference}
-                    onDelete={handleDeleteReference}
-                    onEdit={handleEditReference}
-                    onTokenCountUpdate={handleTokenCountUpdate}
-                  />
-                )
-              ))}
-              {!editingReferenceId && <ReferenceInput onAdd={handleAddReference} />}
-            </div>
+                  ),
+                )}
+                {!editingReferenceId && <ReferenceInput onAdd={handleAddReference} />}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-4 pt-2">
