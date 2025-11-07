@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { FiArrowLeft, FiSettings, FiSliders } from 'react-icons/fi';
+import { FiArrowLeft, FiSettings, FiSliders, FiDownload } from 'react-icons/fi';
 import { Novel, TranslationChapter, AppearanceSettings, ReferenceOp } from '@/types';
 import {
   getNovel,
@@ -11,7 +11,13 @@ import {
   deleteChapter,
   updateChapter,
   getChapterTOC,
+  getChapter,
 } from '@/services/storage';
+import {
+  cacheChapter,
+  getCachedChapter,
+  removeCachedChapter,
+} from '@/utils/chapterCache';
 import { checkTranslationQuality, translateContent } from '@/services/api';
 import TranslationEditor from '@/components/translation/TranslationEditor';
 import ChapterNavigation from '@/components/translation/ChapterNavigation';
@@ -204,6 +210,7 @@ async function saveChapter({
   setLoadedChapters,
   setChapterMetadata,
   setNovel,
+  cacheChapterFn,
 }: {
   novel: Novel;
   chapter: TranslationChapter;
@@ -216,6 +223,7 @@ async function saveChapter({
     ) => Array<{ number: number; title: string }>,
   ) => void;
   setNovel: (novel: Novel | null) => void;
+  cacheChapterFn?: (chapter: TranslationChapter) => void;
 }) {
   const isNewChapter = !chapter.id.startsWith('chapter_');
 
@@ -249,6 +257,14 @@ async function saveChapter({
     return newMetadata.sort((a, b) => a.number - b.number);
   });
 
+  if (cacheChapterFn) {
+    try {
+      cacheChapterFn(chapter);
+    } catch (error) {
+      console.warn('Failed to cache chapter locally.', error);
+    }
+  }
+
   // Reload novel
   const updatedNovel = await getNovel(novel.id);
   if (updatedNovel) {
@@ -280,6 +296,7 @@ async function scrapeChapter(novelUrl: string, chapterNumber: number) {
 }
 
 const LOCAL_STORAGE_KEY = 'novelLamaAppearanceSettings';
+const CACHE_AHEAD_CHAPTERS = 1;
 
 // Utility to safely get settings from localStorage
 const loadAppearanceSettings = (): AppearanceSettings => {
@@ -330,6 +347,7 @@ export default function TranslatePage() {
   const [isBatchTranslating, setIsBatchTranslating] = useState(false);
   const [shouldCancelBatch, setShouldCancelBatch] = useState(false);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [isCachingNovel, setIsCachingNovel] = useState(false);
 
   useEffect(() => {
     if (isBatchTranslating) {
@@ -355,6 +373,72 @@ export default function TranslatePage() {
   const [loadedChapters, setLoadedChapters] = useState<TranslationChapter[]>(
     [],
   );
+  const loadedChaptersRef = useRef<TranslationChapter[]>([]);
+  const preCacheInFlightRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    loadedChaptersRef.current = loadedChapters;
+  }, [loadedChapters]);
+
+  const preCacheChapters = useCallback(
+    async (novelId: string, chapterNumbers: number[]) => {
+      if (chapterNumbers.length === 0) {
+        return;
+      }
+
+      for (const chapterNumber of chapterNumbers) {
+        if (chapterNumber < 1) {
+          continue;
+        }
+
+        const cacheKey = `${novelId}:${chapterNumber}`;
+
+        if (preCacheInFlightRef.current.has(cacheKey)) {
+          continue;
+        }
+
+        if (
+          getCachedChapter(novelId, chapterNumber) ||
+          loadedChaptersRef.current.some((chapter) => chapter.number === chapterNumber)
+        ) {
+          continue;
+        }
+
+        preCacheInFlightRef.current.add(cacheKey);
+
+        try {
+          const chapter = await getChapter(novelId, chapterNumber);
+          if (!chapter) {
+            continue;
+          }
+
+          try {
+            cacheChapter(novelId, chapter);
+          } catch (cacheError) {
+            console.warn('Failed to cache preloaded chapter locally.', cacheError);
+          }
+
+          setLoadedChapters((prevChapters) => {
+            const nextChapters = [...prevChapters];
+            const existingIndex = nextChapters.findIndex(
+              (existing) => existing.number === chapter.number,
+            );
+            if (existingIndex >= 0) {
+              nextChapters[existingIndex] = chapter;
+            } else {
+              nextChapters.push(chapter);
+            }
+            return nextChapters.sort((a, b) => a.number - b.number);
+          });
+        } catch (error) {
+          console.warn(`Failed to pre-cache chapter ${chapterNumber}.`, error);
+        } finally {
+          preCacheInFlightRef.current.delete(cacheKey);
+        }
+      }
+    },
+    [setLoadedChapters],
+  );
 
   // Load chapter metadata (for table of contents)
   const loadChapterMetadata = useCallback(async (novelId: string) => {
@@ -372,9 +456,13 @@ export default function TranslatePage() {
   // Load specific chapters
   const loadChapters = useCallback(
     async (novelId: string, targetIndex: number) => {
+      const targetChapterNumber = targetIndex + 1;
+
+      if (targetChapterNumber < 1) {
+        return;
+      }
+
       try {
-        // If we're creating a new chapter (index beyond current chapters), don't load anything
-        // But only apply this check if we have metadata loaded
         if (
           chapterMetadata.length > 0 &&
           targetIndex >= chapterMetadata.length
@@ -385,37 +473,71 @@ export default function TranslatePage() {
           return;
         }
 
-        // Load the target chapter and its neighbors
-        const start = Math.max(targetIndex - 1, 0);
-        const end = targetIndex + 1;
+        let resolvedChapter = loadedChaptersRef.current.find(
+          (chapter) => chapter.number === targetChapterNumber,
+        ) ?? null;
 
-        const loadedNovel = await getNovel(novelId, {
-          start: start + 1,
-          end: end + 1,
-        });
-        if (loadedNovel && loadedNovel.chapters) {
-          setLoadedChapters((prevChapters) => {
-            // Merge new chapters with existing ones
-            const newChapters = [...prevChapters];
-            loadedNovel.chapters.forEach((chapter) => {
-              const index = newChapters.findIndex(
-                (c) => c.number === chapter.number,
+        if (!resolvedChapter) {
+          const cachedChapter = getCachedChapter(novelId, targetChapterNumber);
+          if (cachedChapter) {
+            resolvedChapter = cachedChapter;
+            setLoadedChapters((prevChapters) => {
+              const nextChapters = [...prevChapters];
+              const existingIndex = nextChapters.findIndex(
+                (ch) => ch.number === cachedChapter.number,
               );
-              if (index >= 0) {
-                newChapters[index] = chapter;
+              if (existingIndex >= 0) {
+                nextChapters[existingIndex] = cachedChapter;
               } else {
-                newChapters.push(chapter);
+                nextChapters.push(cachedChapter);
               }
+              return nextChapters.sort((a, b) => a.number - b.number);
             });
-            return newChapters.sort((a, b) => a.number - b.number);
+          }
+        }
+
+        if (!resolvedChapter) {
+          const fetchedChapter = await getChapter(novelId, targetChapterNumber);
+          if (!fetchedChapter) {
+            return;
+          }
+
+          try {
+            cacheChapter(novelId, fetchedChapter);
+          } catch (cacheError) {
+            console.warn('Failed to cache fetched chapter locally.', cacheError);
+          }
+
+          resolvedChapter = fetchedChapter;
+
+          setLoadedChapters((prevChapters) => {
+            const nextChapters = [...prevChapters];
+            const existingIndex = nextChapters.findIndex(
+              (ch) => ch.number === fetchedChapter.number,
+            );
+            if (existingIndex >= 0) {
+              nextChapters[existingIndex] = fetchedChapter;
+            } else {
+              nextChapters.push(fetchedChapter);
+            }
+            return nextChapters.sort((a, b) => a.number - b.number);
           });
         }
+
+        const upcomingChapterNumbers = chapterMetadata
+          .filter((meta) => meta.number > targetChapterNumber)
+          .slice(0, CACHE_AHEAD_CHAPTERS)
+          .map((meta) => meta.number);
+
+        if (upcomingChapterNumbers.length > 0) {
+          void preCacheChapters(novelId, upcomingChapterNumbers);
+        }
       } catch (error) {
-        console.error('Failed to load chapters:', error);
-        toast.error('Failed to load chapters');
+        console.error('Failed to load chapter:', error);
+        toast.error('Failed to load chapter');
       }
     },
-    [chapterMetadata.length],
+    [chapterMetadata, preCacheChapters],
   );
 
   const loadNovel = useCallback(
@@ -562,6 +684,12 @@ export default function TranslatePage() {
         );
       });
 
+      try {
+        cacheChapter(novel.id, updatedChapter);
+      } catch (cacheError) {
+        console.warn('Failed to cache edited chapter locally.', cacheError);
+      }
+
       // Reload the novel to get the updated chapters
       const updatedNovel = await getNovel(novel.id);
       if (updatedNovel) {
@@ -636,6 +764,7 @@ export default function TranslatePage() {
         setLoadedChapters,
         setChapterMetadata,
         setNovel,
+        cacheChapterFn: (chapterToCache) => cacheChapter(novel.id, chapterToCache),
       });
 
       // Optionally apply reference tool-calls if provided by the model
@@ -736,6 +865,8 @@ export default function TranslatePage() {
           setLoadedChapters,
           setChapterMetadata,
           setNovel,
+          cacheChapterFn: (chapterToCache) =>
+            cacheChapter(currentNovel.id, chapterToCache),
         });
 
         // Apply reference tool calls if provided by the model
@@ -860,6 +991,8 @@ export default function TranslatePage() {
           setLoadedChapters,
           setChapterMetadata,
           setNovel,
+          cacheChapterFn: (chapterToCache) =>
+            cacheChapter(currentNovel.id, chapterToCache),
         });
 
         // Apply reference tool calls if provided by the model
@@ -922,6 +1055,7 @@ export default function TranslatePage() {
           setLoadedChapters,
           setChapterMetadata,
           setNovel,
+          cacheChapterFn: (chapterToCache) => cacheChapter(novel.id, chapterToCache),
         });
       }
 
@@ -983,6 +1117,11 @@ export default function TranslatePage() {
       const latestChapter = chapterMetadata[chapterMetadata.length - 1];
       await deleteChapter(novel.id, latestChapter.number);
 
+      removeCachedChapter(novel.id, latestChapter.number);
+      setLoadedChapters((prevChapters) =>
+        prevChapters.filter((ch) => ch.number !== latestChapter.number),
+      );
+
       // Reload the chapter metadata
       await loadChapterMetadata(novel.id);
 
@@ -996,6 +1135,119 @@ export default function TranslatePage() {
       toast.error('Failed to delete chapter');
     }
   };
+
+  const handleCacheEntireNovel = useCallback(async () => {
+    if (!novel) {
+      return;
+    }
+
+    if (chapterMetadata.length === 0) {
+      toast.error('No chapters available to cache');
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      toast.error('Caching is only available in the browser');
+      return;
+    }
+
+    if (isCachingNovel) {
+      return;
+    }
+
+    setIsCachingNovel(true);
+    const totalChapters = chapterMetadata.length;
+    const chaptersToProcess = [...chapterMetadata]
+      .map((chapter) => chapter.number)
+      .sort((a, b) => a - b);
+
+    let cachedCount = 0;
+    const toastId = toast.loading(`Caching chapters... (0/${totalChapters})`, {
+      duration: Infinity,
+    });
+
+    try {
+      const newlyLoaded: TranslationChapter[] = [];
+
+      for (const chapterNumber of chaptersToProcess) {
+        const existingCached = getCachedChapter(novel.id, chapterNumber);
+        if (existingCached) {
+          cachedCount += 1;
+          continue;
+        }
+
+        let chapterToCache: TranslationChapter | null =
+          loadedChaptersRef.current.find(
+            (chapter) => chapter.number === chapterNumber,
+          ) ?? null;
+
+        if (!chapterToCache) {
+          chapterToCache = await getChapter(novel.id, chapterNumber);
+        }
+
+        if (!chapterToCache) {
+          continue;
+        }
+
+        try {
+          cacheChapter(novel.id, chapterToCache);
+          newlyLoaded.push(chapterToCache);
+          cachedCount += 1;
+        } catch (cacheError) {
+          console.warn('Failed to cache chapter locally.', cacheError);
+        }
+
+        toast.loading(
+          `Caching chapters... (${cachedCount}/${totalChapters})`,
+          { id: toastId },
+        );
+      }
+
+      if (newlyLoaded.length > 0) {
+        setLoadedChapters((prevChapters) => {
+          const nextChapters = [...prevChapters];
+          newlyLoaded.forEach((chapter) => {
+            const index = nextChapters.findIndex(
+              (existing) => existing.number === chapter.number,
+            );
+            if (index >= 0) {
+              nextChapters[index] = chapter;
+            } else {
+              nextChapters.push(chapter);
+            }
+          });
+          return nextChapters.sort((a, b) => a.number - b.number);
+        });
+      }
+
+      const successMessage =
+        newlyLoaded.length > 0
+          ? `Cached ${cachedCount} chapter${cachedCount === 1 ? '' : 's'} for offline use`
+          : 'All chapters already cached';
+
+      toast.dismiss(toastId);
+      toast.custom(
+        (t) => (
+          <div className="flex items-start gap-3 rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 shadow-lg">
+            <div className="flex-1 text-sm text-gray-100">{successMessage}</div>
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="rounded border border-gray-600 px-2 py-1 text-xs text-gray-300 hover:bg-gray-700"
+            >
+              Dismiss
+            </button>
+          </div>
+        ),
+        { duration: Infinity },
+      );
+    } catch (error) {
+      console.error('Failed to cache entire novel:', error);
+      toast.dismiss(toastId);
+      toast.error('Failed to cache novel');
+    } finally {
+      setIsCachingNovel(false);
+    }
+  }, [chapterMetadata, isCachingNovel, novel, setLoadedChapters]);
 
   const updateNovelSettings = async (updatedSettings: Partial<Novel>) => {
     if (novel) {
@@ -1055,6 +1307,18 @@ export default function TranslatePage() {
           </Link>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleCacheEntireNovel}
+              disabled={
+                isCachingNovel ||
+                chapterMetadata.length === 0 ||
+                typeof window === 'undefined'
+              }
+              className="flex items-center gap-2 rounded px-3 py-2 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FiDownload className="h-4 w-4" />
+              <span>{isCachingNovel ? 'Caching…' : 'Cache Novel'}</span>
+            </button>
             <button
               onClick={() => setShowAppearanceSettings(!showAppearanceSettings)}
               className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-gray-300"

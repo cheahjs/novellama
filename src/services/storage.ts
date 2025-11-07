@@ -127,6 +127,25 @@ export const getChapterTOC = async (
   }
 };
 
+export const getChapter = async (
+  novelId: string,
+  chapterNumber: number,
+): Promise<TranslationChapter | null> => {
+  try {
+    const response = await axios.get(
+      `/api/novels/${novelId}/chapters/${chapterNumber}`,
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+
+    console.error('Failed to get chapter:', error);
+    throw error;
+  }
+};
+
 export const exportChapters = async (
   novelId: string,
   range?: { start?: number; end?: number },
