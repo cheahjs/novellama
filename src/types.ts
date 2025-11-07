@@ -62,6 +62,7 @@ export interface Novel {
   sourceUrl: string; // URL to the novel on syosetu.com
   references: Reference[];
   chapterCount: number; // Track total number of chapters
+  readingChapterNumber?: number | null;
   createdAt: number;
   updatedAt: number;
   sortOrder: number;

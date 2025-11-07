@@ -11,6 +11,7 @@ import {
   deleteChapter,
   updateChapter,
   getChapterTOC,
+  updateReadingProgress,
 } from '@/services/storage';
 import { checkTranslationQuality, translateContent } from '@/services/api';
 import TranslationEditor from '@/components/translation/TranslationEditor';
@@ -418,6 +419,30 @@ export default function TranslatePage() {
     [chapterMetadata.length],
   );
 
+  const syncReadingProgress = useCallback(
+    async (novelId: string, chapterNumber: number) => {
+      try {
+        const updatedNovel = await updateReadingProgress(
+          novelId,
+          chapterNumber,
+        );
+        setNovel((prev) => {
+          if (!prev || prev.id !== novelId) {
+            return prev;
+          }
+          return {
+            ...prev,
+            readingChapterNumber: updatedNovel.readingChapterNumber ?? null,
+            updatedAt: updatedNovel.updatedAt,
+          };
+        });
+      } catch (error) {
+        console.error('Failed to sync reading progress:', error);
+      }
+    },
+    [setNovel],
+  );
+
   const loadNovel = useCallback(
     async (novelIdOrSlug?: string) => {
       if (!novelIdOrSlug) return;
@@ -475,20 +500,37 @@ export default function TranslatePage() {
           const metadata = await loadChapterMetadata(canonicalId);
 
           // Determine initial chapter number
-          let initialChapterNumber = 1;
+          const savedChapterNumber =
+            typeof loadedNovel.readingChapterNumber === 'number'
+              ? loadedNovel.readingChapterNumber
+              : null;
+          const firstChapterNumber =
+            metadata.length > 0 ? metadata[0].number : 1;
+          const lastChapterNumber =
+            metadata.length > 0
+              ? metadata[metadata.length - 1].number
+              : firstChapterNumber;
+          const maxNavigableChapter = lastChapterNumber + 1;
+          let initialChapterNumber = firstChapterNumber;
+
           if (chapter !== undefined) {
             const chapterNumber =
               typeof chapter === 'string' ? parseInt(chapter) : 1;
             if (
               !isNaN(chapterNumber) &&
-              chapterNumber >= 1 &&
-              // Allow navigating to a new chapter position
-              chapterNumber <= metadata.length + 1
+              chapterNumber >= firstChapterNumber &&
+              chapterNumber <= maxNavigableChapter
             ) {
               initialChapterNumber = chapterNumber;
             }
-          } else if (metadata.length > 0) {
-            initialChapterNumber = metadata.length;
+          } else if (
+            savedChapterNumber !== null &&
+            savedChapterNumber >= firstChapterNumber
+          ) {
+            initialChapterNumber = Math.min(
+              Math.max(savedChapterNumber, firstChapterNumber),
+              maxNavigableChapter,
+            );
           }
 
           // Always set the current chapter number
@@ -496,6 +538,13 @@ export default function TranslatePage() {
 
           // Always load initial chapters on first load or chapter change
           await loadChapters(canonicalId, initialChapterNumber - 1);
+
+          if (
+            savedChapterNumber === null ||
+            savedChapterNumber !== initialChapterNumber
+          ) {
+            await syncReadingProgress(canonicalId, initialChapterNumber);
+          }
         } else {
           toast.error('Novel not found');
           router.push('/');
@@ -508,7 +557,7 @@ export default function TranslatePage() {
         NProgress.done();
       }
     },
-    [router, chapter, loadChapterMetadata, loadChapters],
+    [router, chapter, loadChapterMetadata, loadChapters, syncReadingProgress],
   );
 
   useEffect(() => {
@@ -954,6 +1003,10 @@ export default function TranslatePage() {
 
       // Only update current chapter number after new chapter is loaded
       setCurrentChapterNumber(chapterNumber);
+
+      if (novel.readingChapterNumber !== chapterNumber) {
+        void syncReadingProgress(novel.id, chapterNumber);
+      }
 
       // Scroll to top after navigation completes
       window.scrollTo({ top: 0, behavior: 'smooth' });

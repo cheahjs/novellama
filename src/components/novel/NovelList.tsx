@@ -138,6 +138,19 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete, onReorder }) =>
           <div className="text-sm text-gray-500">
             {novel.chapterCount || 0} chapters translated
           </div>
+          <div className="text-sm text-gray-500">
+            Reading progress:{' '}
+            {novel.readingChapterNumber && novel.readingChapterNumber > 0
+              ? `Chapter ${novel.readingChapterNumber}${
+                  Math.max(novel.chapterCount || 0, novel.readingChapterNumber) > 0
+                    ? ` of ${Math.max(
+                        novel.chapterCount || 0,
+                        novel.readingChapterNumber,
+                      )}`
+                    : ''
+                }`
+              : 'Not started'}
+          </div>
           <div className="mt-4 flex items-center justify-between">
             <Link
               href={`/translate/${novel.slug || novel.id}`}

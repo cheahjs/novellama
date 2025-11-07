@@ -80,6 +80,7 @@ export default async function handler(
           createdAt: Date.now(),
           updatedAt: Date.now(),
           chapterCount: 0,
+          readingChapterNumber: body.readingChapterNumber ?? null,
           translationTemplate: body.translationTemplate || null,
           translationModel: body.translationModel || null,
           qualityCheckModel: body.qualityCheckModel || null,

@@ -195,3 +195,18 @@ export const deleteChapterRevision = async (
     throw error;
   }
 };
+
+export const updateReadingProgress = async (
+  novelId: string,
+  readingChapterNumber: number | null,
+): Promise<Novel> => {
+  try {
+    const response = await axios.put(`/api/novels/${novelId}/progress`, {
+      readingChapterNumber,
+    });
+    return response.data as Novel;
+  } catch (error) {
+    console.error('Failed to update reading progress:', error);
+    throw error;
+  }
+};

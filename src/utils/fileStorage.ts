@@ -131,6 +131,50 @@ export async function getNovelById(
   return { ...targetNovel, chapters };
 }
 
+export async function updateNovelProgress(
+  id: string,
+  readingChapterNumber: number | null,
+): Promise<Novel | null> {
+  const db = getDb();
+
+  const existingNovel = db
+    .prepare(
+      `
+      SELECT * FROM novels WHERE id = ?
+    `,
+    )
+    .get(id) as (Novel & { references?: Reference[] }) | undefined;
+
+  if (!existingNovel) {
+    return null;
+  }
+
+  const now = Date.now();
+
+  db.prepare(
+    `
+      UPDATE novels
+      SET readingChapterNumber = ?, updatedAt = ?
+      WHERE id = ?
+    `,
+  ).run(readingChapterNumber ?? null, now, id);
+
+  const references = db
+    .prepare(
+      `
+      SELECT * FROM "references" WHERE novelId = ?
+    `,
+    )
+    .all(id) as Reference[];
+
+  return {
+    ...existingNovel,
+    readingChapterNumber: readingChapterNumber ?? null,
+    updatedAt: now,
+    references,
+  };
+}
+
 // Save a novel (create or update)
 export async function saveNovel(novel: Novel): Promise<Novel> {
   const db = getDb();
@@ -169,8 +213,8 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         translationModel, qualityCheckModel,
         translationToolCallsEnable,
         maxTokens, maxTranslationOutputTokens, maxQualityCheckOutputTokens,
-        chapterCount, createdAt, updatedAt, sortOrder
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        chapterCount, readingChapterNumber, createdAt, updatedAt, sortOrder
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         slug = excluded.slug,
         title = excluded.title,
@@ -186,6 +230,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         maxTranslationOutputTokens = excluded.maxTranslationOutputTokens,
         maxQualityCheckOutputTokens = excluded.maxQualityCheckOutputTokens,
         chapterCount = excluded.chapterCount,
+        readingChapterNumber = excluded.readingChapterNumber,
         updatedAt = excluded.updatedAt,
         sortOrder = excluded.sortOrder
     `,
@@ -211,6 +256,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       novel.maxTranslationOutputTokens ?? null,
       novel.maxQualityCheckOutputTokens ?? null,
       novel.chapterCount || 0,
+      novel.readingChapterNumber ?? null,
       novel.createdAt ?? now,
       novel.updatedAt ?? now,
       typeof novel.sortOrder === 'number' ? novel.sortOrder : now,

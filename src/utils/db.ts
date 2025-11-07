@@ -43,6 +43,7 @@ function initializeDb() {
       maxTranslationOutputTokens INTEGER,
       maxQualityCheckOutputTokens INTEGER,
       chapterCount INTEGER DEFAULT 0,
+      readingChapterNumber INTEGER,
       createdAt INTEGER NOT NULL,
       updatedAt INTEGER NOT NULL
     )
@@ -65,6 +66,7 @@ function initializeDb() {
   addColumnIfMissing('maxTranslationOutputTokens', 'INTEGER');
   addColumnIfMissing('maxQualityCheckOutputTokens', 'INTEGER');
   addColumnIfMissing('sortOrder', 'INTEGER');
+  addColumnIfMissing('readingChapterNumber', 'INTEGER');
 
   // Create references table
   db.exec(`
