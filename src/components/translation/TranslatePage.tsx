@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -35,6 +35,13 @@ interface TranslationResult {
     isGoodQuality: boolean;
   };
   toolCalls?: ReferenceOp[];
+}
+
+export interface TranslatePageProps {
+  initialNovel?: Novel | null;
+  initialChapterMetadata?: Array<{ number: number; title: string }>;
+  initialChapterNumber?: number;
+  initialLoadedChapters?: TranslationChapter[];
 }
 
 async function performTranslation({
@@ -319,13 +326,19 @@ const saveAppearanceSettings = (settings: AppearanceSettings) => {
   }
 };
 
-export default function TranslatePage() {
+export default function TranslatePage({
+  initialNovel = null,
+  initialChapterMetadata = [],
+  initialChapterNumber: initialChapterNumberProp = 1,
+  initialLoadedChapters = [],
+}: TranslatePageProps = {}) {
   const router = useRouter();
   const { id, chapter } = router.query;
 
-  
-  const [novel, setNovel] = useState<Novel | null>(null);
-  const [currentChapterNumber, setCurrentChapterNumber] = useState(1);
+  const [novel, setNovel] = useState<Novel | null>(initialNovel ?? null);
+  const [currentChapterNumber, setCurrentChapterNumber] = useState(
+    initialChapterNumberProp,
+  );
   const [isTranslating, setIsTranslating] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isBatchTranslating, setIsBatchTranslating] = useState(false);
@@ -352,10 +365,13 @@ export default function TranslatePage() {
   const [liveAppearanceSettings, setLiveAppearanceSettings] = useState<AppearanceSettings>(loadAppearanceSettings());
   const [chapterMetadata, setChapterMetadata] = useState<
     Array<{ number: number; title: string }>
-  >([]);
-  const [loadedChapters, setLoadedChapters] = useState<TranslationChapter[]>(
-    [],
+  >(() => [...initialChapterMetadata]);
+  const [loadedChapters, setLoadedChapters] = useState<TranslationChapter[]>(() =>
+    [...initialLoadedChapters].sort((a, b) => a.number - b.number),
   );
+
+  const lastLoadedIdRef = useRef<string | null>(null);
+  const hasSyncedInitialProgressRef = useRef(false);
 
   // Load chapter metadata (for table of contents)
   const loadChapterMetadata = useCallback(async (novelId: string) => {
@@ -442,6 +458,31 @@ export default function TranslatePage() {
     },
     [setNovel],
   );
+
+  useEffect(() => {
+    if (!initialNovel?.id) {
+      return;
+    }
+    if (hasSyncedInitialProgressRef.current) {
+      return;
+    }
+
+    if (
+      initialNovel.readingChapterNumber !== null &&
+      initialNovel.readingChapterNumber === initialChapterNumberProp
+    ) {
+      hasSyncedInitialProgressRef.current = true;
+      return;
+    }
+
+    hasSyncedInitialProgressRef.current = true;
+    void syncReadingProgress(initialNovel.id, initialChapterNumberProp);
+  }, [
+    initialNovel?.id,
+    initialNovel?.readingChapterNumber,
+    initialChapterNumberProp,
+    syncReadingProgress,
+  ]);
 
   const loadNovel = useCallback(
     async (novelIdOrSlug?: string) => {
@@ -561,10 +602,49 @@ export default function TranslatePage() {
   );
 
   useEffect(() => {
-    if (id && typeof id === 'string') {
-      loadNovel(id);
+    if (!router.isReady) {
+      return;
     }
-  }, [id, loadNovel]);
+    if (typeof id !== 'string') {
+      return;
+    }
+
+    const knownIds = new Set<string>();
+    if (initialNovel?.id) {
+      knownIds.add(initialNovel.id);
+    }
+    if (initialNovel?.slug) {
+      knownIds.add(initialNovel.slug);
+    }
+    if (novel?.id) {
+      knownIds.add(novel.id);
+    }
+    if (novel?.slug) {
+      knownIds.add(novel.slug);
+    }
+
+    if (!lastLoadedIdRef.current) {
+      if (knownIds.has(id)) {
+        lastLoadedIdRef.current = id;
+        return;
+      }
+    }
+
+    if (lastLoadedIdRef.current === id) {
+      return;
+    }
+
+    lastLoadedIdRef.current = id;
+    loadNovel(id);
+  }, [
+    id,
+    initialNovel?.id,
+    initialNovel?.slug,
+    loadNovel,
+    novel?.id,
+    novel?.slug,
+    router.isReady,
+  ]);
 
   // Effect to load settings from localStorage on initial mount
   useEffect(() => {
@@ -1091,7 +1171,7 @@ export default function TranslatePage() {
     <div className="min-h-screen bg-gray-900 text-gray-100">
       <Head>
         <title>
-          {novel.title} - Chapter {currentChapterNumber} - NovelLama
+          {novel.title} - Chapter {currentChapterNumber} - Novellama
         </title>
       </Head>
 
