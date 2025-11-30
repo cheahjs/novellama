@@ -34,6 +34,7 @@ interface TranslationEditorProps {
       qualityFeedback?: string;
       useImprovementFeedback?: boolean;
     },
+    onUpdate?: (partial: string) => void,
   ) => Promise<TranslationResponse | undefined>;
   onSaveEdit?: (title: string, translatedContent: string) => Promise<void>;
   onQualityCheck?: (sourceContent: string, translatedContent: string) => Promise<QualityCheckResponse | undefined>;
@@ -118,6 +119,15 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     }
   };
 
+  const [streamingContent, setStreamingContent] = useState<string>('');
+
+  // Auto-scroll to bottom when streaming content updates
+  useEffect(() => {
+    if (streamingContent && textareaRef.current) {
+      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    }
+  }, [streamingContent]);
+
   useEffect(() => {
     // Reset states when chapter changes or when moving to a new chapter
     setIsRetranslating(false);
@@ -126,6 +136,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     setShowSource(false);
     setIsEditing(false);
     setSourceContent('');
+    setStreamingContent('');
 
     if (chapter) {
       // Update content states
@@ -164,6 +175,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
     e.preventDefault();
     if (sourceContent.trim() && !isScrapingChapter && !isTranslating) {
       try {
+        setStreamingContent('');
         // For retranslation, pass previous translation data if enabled
         const previousTranslationData =
           isRetranslating &&
@@ -181,6 +193,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           useAutoRetry,
           maxAttempts,
           previousTranslationData,
+          (partial) => setStreamingContent(partial),
         );
 
         if (result) {
@@ -193,6 +206,7 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
         setIsRetranslating(false);
         setIsAutoRetrying(false);
         setAutoRetryAttempt(0);
+        setStreamingContent('');
       }
     }
   };
@@ -487,13 +501,14 @@ const TranslationEditor: React.FC<TranslationEditorProps> = ({
           <div className="relative">
             <textarea
               ref={textareaRef}
-              value={sourceContent}
-              onChange={(e) => setSourceContent(e.target.value)}
+              value={streamingContent || sourceContent}
+              onChange={(e) => !isTranslating && setSourceContent(e.target.value)}
               placeholder={
                 isTranslating ? 'Translating...' : 'Enter text to translate...'
               }
               className="h-40 w-full rounded-lg border p-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-              disabled={isTranslating}
+              disabled={isTranslating && !streamingContent}
+              readOnly={isTranslating}
             />
             <div className="absolute top-2 right-2">
               <LiveTokenCounter

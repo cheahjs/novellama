@@ -113,6 +113,13 @@ export interface TranslationResponse {
   toolCalls?: ReferenceOp[];
 }
 
+export interface TranslationPostprocessOptions {
+  removeXmlTags: boolean;
+  removeCodeBlocks: boolean;
+  trimWhitespace: boolean;
+  truncateAfterSecondHeader: boolean;
+}
+
 export interface QualityCheckResponse {
   isGoodQuality: boolean;
   score: number;

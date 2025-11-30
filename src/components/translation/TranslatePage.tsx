@@ -52,6 +52,7 @@ async function performTranslation({
   previousTranslationData,
   toastId,
   maxAttempts = 5,
+  onUpdate,
 }: {
   sourceContent: string;
   novelId: string;
@@ -64,6 +65,7 @@ async function performTranslation({
   };
   toastId?: string;
   maxAttempts?: number;
+  onUpdate?: (partial: string) => void;
 }): Promise<TranslationResult> {
   if (!useAutoRetry) {
     return translateContent({
@@ -71,6 +73,7 @@ async function performTranslation({
       novelId,
       currentChapterId,
       ...previousTranslationData,
+      onUpdate,
     });
   }
 
@@ -107,6 +110,7 @@ async function performTranslation({
                 useImprovementFeedback: true,
               }
             : {}),
+        onUpdate: attempt === 0 ? onUpdate : undefined, // Only stream on first attempt for now to avoid UI confusion
       });
       if (lastToastId) {
         toast.dismiss(lastToastId);
@@ -141,7 +145,7 @@ async function performTranslation({
 
   return (
     bestResult ||
-    (await translateContent({ sourceContent, novelId, currentChapterId }))
+    (await translateContent({ sourceContent, novelId, currentChapterId, onUpdate }))
   );
 }
 
@@ -713,6 +717,7 @@ export default function TranslatePage({
       qualityFeedback?: string;
       useImprovementFeedback?: boolean;
     },
+    onUpdate?: (partial: string) => void,
   ) => {
     if (!novel) return;
 
@@ -730,6 +735,7 @@ export default function TranslatePage({
         previousTranslationData,
         toastId,
         maxAttempts,
+        onUpdate,
       });
 
       const translatedLines = result.translatedContent.split('\n');

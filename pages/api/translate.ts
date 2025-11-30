@@ -1,8 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
-import { NovelWithChapters, Reference } from '@/types';
+import { NovelWithChapters, Reference, TranslationPostprocessOptions } from '@/types';
 import { truncateContext } from '@/utils/tokenizer';
 import { getNovelById } from '@/utils/fileStorage';
+import { postProcessTranslation } from '@/utils/postProcessTranslation';
+import { extractToolcallsAndStrip } from '@/utils/extractToolcalls';
 import { serverConfig } from '../../config';
 
 interface ChatMessage {
@@ -18,6 +20,13 @@ interface MinimalTranslationRequest {
   qualityFeedback?: string;
   useImprovementFeedback?: boolean;
 }
+
+const postprocessOptions: TranslationPostprocessOptions = {
+  removeXmlTags: serverConfig.postprocessRemoveXmlTags,
+  removeCodeBlocks: serverConfig.postprocessRemoveCodeBlocks,
+  trimWhitespace: serverConfig.postprocessTrimWhitespace,
+  truncateAfterSecondHeader: serverConfig.postprocessTruncateAfterSecondHeader,
+};
 
 async function makeTranslationRequest(
   url: string,
@@ -400,41 +409,91 @@ export default async function handler(
       `Making translation request with ${messages.length} messages (model: ${model}, temperature: ${temperature})`,
     );
 
-    let translation = '';
-    let tokenUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined = undefined;
-    let finishReason: string | null = null;
-
     if (serverConfig.translationUseStreaming) {
-      // Streaming attempt
-      let streamResult = await makeStreamingTranslationRequest(
-        url,
-        messages,
-        model,
-        temperature,
-        apiKey,
-        maxOutputTokens,
-      );
-      translation = streamResult.content;
-      tokenUsage = streamResult.usage;
-      finishReason = streamResult.finishReason;
-      if (finishReason === 'length') {
-        console.log('Hit length limit (stream), retrying with the same parameters...');
-        streamResult = await makeStreamingTranslationRequest(
+      try {
+        const response = await axios.post(
           url,
-          messages,
-          model,
-          temperature,
-          apiKey,
-          maxOutputTokens,
+          {
+            model,
+            messages,
+            temperature,
+            max_tokens: maxOutputTokens,
+            stream: true,
+            stream_options: { include_usage: true },
+            ...(model.includes('gemini')
+              ? {
+                  safetySettings: [
+                    {
+                      category: 'HARM_CATEGORY_HARASSMENT',
+                      threshold: 'BLOCK_NONE',
+                    },
+                    {
+                      category: 'HARM_CATEGORY_HATE_SPEECH',
+                      threshold: 'BLOCK_NONE',
+                    },
+                    {
+                      category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                      threshold: 'BLOCK_NONE',
+                    },
+                    {
+                      category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                      threshold: 'BLOCK_NONE',
+                    },
+                    {
+                      category: 'HARM_CATEGORY_CIVIC_INTEGRITY',
+                      threshold: 'BLOCK_NONE',
+                    },
+                  ],
+                }
+              : {}),
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+            },
+            responseType: 'stream',
+          },
         );
-        translation = streamResult.content;
-        tokenUsage = streamResult.usage;
-        finishReason = streamResult.finishReason;
+
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+        });
+
+        const stream: NodeJS.ReadableStream = response.data;
+        
+        // Send initial metadata
+        res.write(`data: ${JSON.stringify({ 
+          type: 'metadata', 
+          sourceLanguage: novel.sourceLanguage,
+          targetLanguage: novel.targetLanguage,
+          tokenCounts,
+          postprocessOptions,
+        })}\n\n`);
+
+        stream.on('data', (chunk: Buffer) => {
+          res.write(chunk);
+        });
+
+        stream.on('end', () => {
+          res.end();
+        });
+
+        stream.on('error', (err) => {
+          console.error('Stream error:', err);
+          res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
+          res.end();
+        });
+
+      } catch (error) {
+        console.error('Streaming request failed:', error);
+        if (!res.headersSent) {
+          return res.status(500).json({ message: 'Streaming request failed' });
+        }
+        return res.end();
       }
-      console.log('translation response (stream)', {
-        usage: tokenUsage,
-        finishReason,
-      });
     } else {
       // Non-streaming attempt
       let apiResponse = await makeTranslationRequest(
@@ -458,9 +517,9 @@ export default async function handler(
         );
       }
 
-      translation = apiResponse.data.choices[0].message.content;
-      tokenUsage = apiResponse.data.usage;
-      finishReason = apiResponse.data.choices[0].finish_reason;
+      const translation = apiResponse.data.choices[0].message.content;
+      const tokenUsage = apiResponse.data.usage;
+      const finishReason = apiResponse.data.choices[0].finish_reason;
       console.log('translation response', {
         responseHeaders: apiResponse.headers,
         responseBody: apiResponse.data,
@@ -468,26 +527,26 @@ export default async function handler(
         finishReason,
         safetyResults: JSON.stringify(apiResponse.data.vertex_ai_safety_results),
       });
+
+      // Extract toolcalls, then post-process translation text
+      const { translation: strippedTranslation, toolcalls } = extractToolcallsAndStrip(translation);
+      const postProcessedTranslation = postProcessTranslation(strippedTranslation, postprocessOptions);
+
+      // Return the translation along with the novel's language settings for quality check
+      return res.status(200).json({
+        translation: postProcessedTranslation,
+        toolCalls: toolcalls,
+        tokenUsage: tokenUsage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        sourceLanguage: novel.sourceLanguage,
+        targetLanguage: novel.targetLanguage,
+        tokenCounts: {
+          system: tokenCounts.system,
+          task: tokenCounts.task,
+          translation: tokenCounts.translation,
+        },
+        finishReason,
+      });
     }
-
-    // Extract toolcalls, then post-process translation text
-    const { translation: strippedTranslation, toolcalls } = extractToolcallsAndStrip(translation);
-    const postProcessedTranslation = postProcessTranslation(strippedTranslation);
-
-    // Return the translation along with the novel's language settings for quality check
-    return res.status(200).json({
-      translation: postProcessedTranslation,
-      toolCalls: Array.isArray(toolcalls?.reference_ops) ? toolcalls.reference_ops : [],
-      tokenUsage: tokenUsage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-      sourceLanguage: novel.sourceLanguage,
-      targetLanguage: novel.targetLanguage,
-      tokenCounts: {
-        system: tokenCounts.system,
-        task: tokenCounts.task,
-        translation: tokenCounts.translation,
-      },
-      finishReason,
-    });
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
       console.error('API error:', error.response?.data || error.message);
@@ -502,47 +561,4 @@ export default async function handler(
       error: message,
     });
   }
-}
-
-function extractToolcallsAndStrip(translation: string): {
-  translation: string;
-  toolcalls: { reference_ops?: Array<{ type?: string; id?: string; title?: string; content?: string }> } | null;
-} {
-  const fenceRegex = /```toolcalls\s*([\s\S]*?)```/i;
-  const match = translation.match(fenceRegex);
-  if (!match) {
-    return { translation, toolcalls: null };
-  }
-  let parsed: { reference_ops?: Array<{ type?: string; id?: string; title?: string; content?: string }> } | null = null;
-  try {
-    parsed = JSON.parse(match[1]);
-  } catch {
-    parsed = null;
-  }
-  const stripped = translation.replace(fenceRegex, '').trim();
-  return { translation: stripped, toolcalls: parsed };
-}
-
-function postProcessTranslation(translation: string) {
-  let output = translation;
-  // Remove any XML like tags including closing tags
-  if (serverConfig.postprocessRemoveXmlTags) {
-    output = output.replace(/<\/?[^>]*>/g, '');
-  }
-  // Remove any markdown code blocks using backticks
-  if (serverConfig.postprocessRemoveCodeBlocks) {
-    output = output.replace(/```[\s\S]*?```/g, '');
-  }
-  // Trim whitespace
-  if (serverConfig.postprocessTrimWhitespace) {
-    output = output.trim();
-  }
-  // Check if there's a second title header (eg # Chapter 2), and remove all content after it
-  if (serverConfig.postprocessTruncateAfterSecondHeader) {
-    const secondHeaderIndex = output.indexOf('\n# ');
-    if (secondHeaderIndex !== -1) {
-      output = output.substring(0, secondHeaderIndex);
-    }
-  }
-  return output;
 }
