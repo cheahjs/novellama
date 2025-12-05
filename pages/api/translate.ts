@@ -5,6 +5,7 @@ import { truncateContext } from '@/utils/tokenizer';
 import { getNovelById } from '@/utils/fileStorage';
 import { postProcessTranslation } from '@/utils/postProcessTranslation';
 import { extractToolcallsAndStrip } from '@/utils/extractToolcalls';
+import { normalizeToolCalls } from '@/utils/toolCalls';
 import { serverConfig } from '../../config';
 
 interface ChatMessage {
@@ -19,6 +20,7 @@ interface MinimalTranslationRequest {
   previousTranslation?: string;
   qualityFeedback?: string;
   useImprovementFeedback?: boolean;
+  useStreaming?: boolean;
 }
 
 const postprocessOptions: TranslationPostprocessOptions = {
@@ -409,7 +411,13 @@ export default async function handler(
       `Making translation request with ${messages.length} messages (model: ${model}, temperature: ${temperature})`,
     );
 
-    if (serverConfig.translationUseStreaming) {
+    // Decide streaming behavior: always honor explicit client streaming requests.
+    // Server config can still enable upstream streaming for non-streaming clients.
+    const streamToClient = !!request.useStreaming;
+    const streamFromUpstream = streamToClient || serverConfig.translationUseStreaming;
+
+    if (streamToClient) {
+      // Client wants streaming - pass through the stream directly
       try {
         const response = await axios.post(
           url,
@@ -490,12 +498,61 @@ export default async function handler(
       } catch (error) {
         console.error('Streaming request failed:', error);
         if (!res.headersSent) {
-          return res.status(500).json({ message: 'Streaming request failed' });
+          const status = axios.isAxiosError(error)
+            ? error.response?.status ?? 500
+            : 500;
+          return res.status(status).json({ message: 'Streaming request failed' });
         }
         return res.end();
       }
+    } else if (streamFromUpstream) {
+      // Server wants to stream from upstream but client doesn't want streaming
+      // Collect the streamed response and return as JSON
+      try {
+        const streamResult = await makeStreamingTranslationRequest(
+          url,
+          messages,
+          model,
+          temperature,
+          apiKey,
+          maxOutputTokens,
+        );
+
+        const translation = streamResult.content;
+        const tokenUsage = streamResult.usage;
+        const finishReason = streamResult.finishReason;
+        console.log('translation response (streamed, collected)', {
+          usage: tokenUsage,
+          finishReason,
+          contentLength: translation.length,
+        });
+
+        // Extract toolcalls, then post-process translation text
+        const { translation: strippedTranslation, toolcalls } = extractToolcallsAndStrip(translation);
+        const normalizedToolCalls = normalizeToolCalls(toolcalls);
+        const postProcessedTranslation = postProcessTranslation(strippedTranslation, postprocessOptions);
+
+        // Return the translation along with the novel's language settings for quality check
+        return res.status(200).json({
+          translation: postProcessedTranslation,
+          toolCalls: normalizedToolCalls,
+          tokenUsage: tokenUsage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+          sourceLanguage: novel.sourceLanguage,
+          targetLanguage: novel.targetLanguage,
+          tokenCounts: {
+            system: tokenCounts.system,
+            task: tokenCounts.task,
+            translation: tokenCounts.translation,
+          },
+          finishReason,
+        });
+
+      } catch (error) {
+        console.error('Streaming request failed:', error);
+        return res.status(500).json({ message: 'Streaming request failed' });
+      }
     } else {
-      // Non-streaming attempt
+      // Non-streaming from upstream
       let apiResponse = await makeTranslationRequest(
         url,
         messages,
@@ -530,12 +587,13 @@ export default async function handler(
 
       // Extract toolcalls, then post-process translation text
       const { translation: strippedTranslation, toolcalls } = extractToolcallsAndStrip(translation);
+      const normalizedToolCalls = normalizeToolCalls(toolcalls);
       const postProcessedTranslation = postProcessTranslation(strippedTranslation, postprocessOptions);
 
       // Return the translation along with the novel's language settings for quality check
       return res.status(200).json({
         translation: postProcessedTranslation,
-        toolCalls: toolcalls,
+        toolCalls: normalizedToolCalls,
         tokenUsage: tokenUsage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
         sourceLanguage: novel.sourceLanguage,
         targetLanguage: novel.targetLanguage,

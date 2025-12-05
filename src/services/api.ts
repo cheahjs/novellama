@@ -12,6 +12,7 @@ type MinimalTranslationRequest = {
   qualityFeedback?: string;
   useImprovementFeedback?: boolean;
   onUpdate?: (partial: string) => void;
+  useStreaming?: boolean;
 };
 
 type StreamingTokenUsage = {
@@ -62,7 +63,7 @@ export const translateContent = async (
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(request),
+          body: JSON.stringify({ ...request, useStreaming: true }),
         });
 
         if (!resp.ok) {
