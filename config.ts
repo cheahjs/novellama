@@ -31,6 +31,7 @@ export const serverConfig = {
   postprocessRemoveCodeBlocks: getEnvBoolean('TRANSLATION_POSTPROCESS_REMOVE_CODE_BLOCKS', true), 
   postprocessTrimWhitespace: getEnvBoolean('TRANSLATION_POSTPROCESS_TRIM_WHITESPACE', true),
   postprocessTruncateAfterSecondHeader: getEnvBoolean('TRANSLATION_POSTPROCESS_TRUNCATE_AFTER_SECOND_HEADER', true),
+  novelCheckIntervalHours: Number(process.env.NOVEL_CHECK_INTERVAL_HOURS || '12'),
 };
 
 // Type definitions

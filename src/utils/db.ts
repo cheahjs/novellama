@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import { startBackgroundWorker } from '../services/backgroundWorker';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'novellama.db');
 
@@ -10,6 +11,11 @@ export function getDb(): Database.Database {
   if (!db) {
     db = new Database(DB_PATH);
     initializeDb();
+    
+    // Start background worker for novel updates
+    if (process.env.NODE_ENV !== 'test') {
+      startBackgroundWorker();
+    }
   }
   return db;
 }
@@ -44,6 +50,7 @@ function initializeDb() {
       maxQualityCheckOutputTokens INTEGER,
       chapterCount INTEGER DEFAULT 0,
       readingChapterNumber INTEGER,
+      hasNewChapters INTEGER DEFAULT 0,
       createdAt INTEGER NOT NULL,
       updatedAt INTEGER NOT NULL
     )
@@ -67,6 +74,7 @@ function initializeDb() {
   addColumnIfMissing('maxQualityCheckOutputTokens', 'INTEGER');
   addColumnIfMissing('sortOrder', 'INTEGER');
   addColumnIfMissing('readingChapterNumber', 'INTEGER');
+  addColumnIfMissing('hasNewChapters', 'INTEGER');
 
   // Create references table
   db.exec(`

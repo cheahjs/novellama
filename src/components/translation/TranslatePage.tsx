@@ -1177,7 +1177,7 @@ export default function TranslatePage({
     <div className="min-h-screen bg-gray-900 text-gray-100">
       <Head>
         <title>
-          {novel.title} - Chapter {currentChapterNumber} - Novellama
+          {novel.hasNewChapters ? '(!) ' : ''}{novel.title} - Chapter {currentChapterNumber} - Novellama
         </title>
       </Head>
 
@@ -1185,13 +1185,23 @@ export default function TranslatePage({
 
       <div className="container mx-auto max-w-4xl px-4">
         <div className="flex items-center justify-between py-4">
-          <Link
-            href="/"
-            className="flex items-center space-x-2 text-gray-400 hover:text-gray-300"
-          >
-            <FiArrowLeft className="h-5 w-5" />
-            <span>Back to Novels</span>
-          </Link>
+          <div className="flex items-center space-x-4">
+            <Link
+              href="/"
+              className="flex items-center space-x-2 text-gray-400 hover:text-gray-300"
+            >
+              <FiArrowLeft className="h-5 w-5" />
+              <span>Back</span>
+            </Link>
+            <h1 className="text-xl font-bold truncate max-w-[200px] md:max-w-md">
+              {novel.title}
+            </h1>
+            {novel.hasNewChapters && (
+              <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 animate-pulse">
+                NEW
+              </span>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <button

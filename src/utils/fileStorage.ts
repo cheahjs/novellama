@@ -21,10 +21,18 @@ export async function readNovels(): Promise<Novel[]> {
     ORDER BY n.sortOrder ASC, n.createdAt ASC
   `,
     )
-    .all() as Novel[];
+    .all() as any[];
+
+  const mapNovel = (n: any): Novel => ({
+    ...n,
+    hasNewChapters: n.hasNewChapters === 1,
+    translationToolCallsEnable: n.translationToolCallsEnable === 1,
+  });
+
+  const processedNovels = novels.map(mapNovel);
 
   // Fetch references for each novel
-  for (const novel of novels) {
+  for (const novel of processedNovels) {
     const references = db
       .prepare(
         `
@@ -35,7 +43,7 @@ export async function readNovels(): Promise<Novel[]> {
     novel.references = references;
   }
 
-  return novels;
+  return processedNovels;
 }
 
 // Get a single novel by ID with optional chapter range
@@ -52,10 +60,15 @@ export async function getNovelById(
     SELECT * FROM novels WHERE id = ? OR slug = ?
   `,
     )
-    .get(idOrSlug, idOrSlug) as Novel | undefined;
+    .get(idOrSlug, idOrSlug) as any | undefined;
 
-  const targetNovel = novel;
-  if (!targetNovel) return null;
+  if (!novel) return null;
+
+  const targetNovel: Novel = {
+    ...novel,
+    hasNewChapters: novel.hasNewChapters === 1,
+    translationToolCallsEnable: novel.translationToolCallsEnable === 1,
+  };
 
   // Get references
   targetNovel.references = db
@@ -213,8 +226,8 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         translationModel, qualityCheckModel,
         translationToolCallsEnable,
         maxTokens, maxTranslationOutputTokens, maxQualityCheckOutputTokens,
-        chapterCount, readingChapterNumber, createdAt, updatedAt, sortOrder
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        chapterCount, readingChapterNumber, hasNewChapters, createdAt, updatedAt, sortOrder
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         slug = excluded.slug,
         title = excluded.title,
@@ -231,6 +244,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
         maxQualityCheckOutputTokens = excluded.maxQualityCheckOutputTokens,
         chapterCount = excluded.chapterCount,
         readingChapterNumber = excluded.readingChapterNumber,
+        hasNewChapters = excluded.hasNewChapters,
         updatedAt = excluded.updatedAt,
         sortOrder = excluded.sortOrder
     `,
@@ -257,6 +271,7 @@ export async function saveNovel(novel: Novel): Promise<Novel> {
       novel.maxQualityCheckOutputTokens ?? null,
       novel.chapterCount || 0,
       novel.readingChapterNumber ?? null,
+      novel.hasNewChapters ? 1 : 0,
       novel.createdAt ?? now,
       novel.updatedAt ?? now,
       typeof novel.sortOrder === 'number' ? novel.sortOrder : now,
@@ -326,6 +341,11 @@ export async function deleteNovel(id: string): Promise<void> {
 
   // The foreign key constraints will handle cascading deletes
   db.prepare(`DELETE FROM novels WHERE id = ?`).run(id);
+}
+
+export async function clearNewChaptersFlag(id: string): Promise<void> {
+  const db = getDb();
+  db.prepare(`UPDATE novels SET hasNewChapters = 0 WHERE id = ?`).run(id);
 }
 
 // Clear cache (no longer needed with SQLite)

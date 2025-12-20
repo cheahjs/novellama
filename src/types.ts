@@ -76,6 +76,7 @@ export interface Novel {
   maxTokens?: number | null; // Context truncation token limit
   maxTranslationOutputTokens?: number | null;
   maxQualityCheckOutputTokens?: number | null;
+  hasNewChapters?: boolean | null;
 }
 
 export interface NovelSortUpdate {

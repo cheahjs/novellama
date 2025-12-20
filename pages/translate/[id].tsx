@@ -2,7 +2,7 @@ import type { GetServerSideProps } from 'next';
 import TranslatePage, {
   TranslatePageProps,
 } from '@/components/translation/TranslatePage';
-import { getNovelById } from '@/utils/fileStorage';
+import { getNovelById, clearNewChaptersFlag } from '@/utils/fileStorage';
 import { getChapterMetadata } from '@/utils/chapterStorage';
 import type { TranslationChapter } from '@/types';
 
@@ -35,6 +35,12 @@ export const getServerSideProps: GetServerSideProps<TranslatePageProps> = async 
 
   if (!baseNovel) {
     return { notFound: true };
+  }
+
+  // Clear new chapters badge when viewing the novel
+  if (baseNovel.hasNewChapters) {
+    await clearNewChaptersFlag(baseNovel.id);
+    baseNovel.hasNewChapters = false;
   }
 
   const canonicalSegment = baseNovel.slug || baseNovel.id;

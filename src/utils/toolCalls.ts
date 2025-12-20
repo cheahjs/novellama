@@ -16,8 +16,3 @@ export function normalizeToolCalls(input: unknown): ReferenceOp[] {
 
   return [];
 }
-
-
-
-
-

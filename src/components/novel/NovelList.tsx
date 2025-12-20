@@ -131,7 +131,14 @@ const NovelList: React.FC<NovelListProps> = ({ novels, onDelete, onReorder }) =>
           onDrop={(event) => handleDrop(event, novel.id)}
           onDragEnd={handleDragEnd}
         >
-          <h3 className="text-lg font-bold">{novel.title}</h3>
+          <div className="flex items-start justify-between">
+            <h3 className="text-lg font-bold">{novel.title}</h3>
+            {novel.hasNewChapters && (
+              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 animate-pulse">
+                NEW
+              </span>
+            )}
+          </div>
           <div className="my-2 text-sm text-gray-500">
             {novel.sourceLanguage} → {novel.targetLanguage}
           </div>
