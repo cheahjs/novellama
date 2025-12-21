@@ -8,6 +8,11 @@ import getDb from './db';
 import { nanoid } from 'nanoid';
 import slugify from 'slugify';
 
+interface NovelDbRow extends Omit<Novel, 'hasNewChapters' | 'translationToolCallsEnable' | 'references'> {
+  hasNewChapters: number | null;
+  translationToolCallsEnable: number | null;
+}
+
 // Read all novels from database (without chapters)
 export async function readNovels(): Promise<Novel[]> {
   const db = getDb();
@@ -21,10 +26,11 @@ export async function readNovels(): Promise<Novel[]> {
     ORDER BY n.sortOrder ASC, n.createdAt ASC
   `,
     )
-    .all() as any[];
+    .all() as NovelDbRow[];
 
-  const mapNovel = (n: any): Novel => ({
+  const mapNovel = (n: NovelDbRow): Novel => ({
     ...n,
+    references: [],
     hasNewChapters: n.hasNewChapters === 1,
     translationToolCallsEnable: n.translationToolCallsEnable === 1,
   });
@@ -60,12 +66,13 @@ export async function getNovelById(
     SELECT * FROM novels WHERE id = ? OR slug = ?
   `,
     )
-    .get(idOrSlug, idOrSlug) as any | undefined;
+    .get(idOrSlug, idOrSlug) as NovelDbRow | undefined;
 
   if (!novel) return null;
 
   const targetNovel: Novel = {
     ...novel,
+    references: [],
     hasNewChapters: novel.hasNewChapters === 1,
     translationToolCallsEnable: novel.translationToolCallsEnable === 1,
   };

@@ -112,10 +112,11 @@ function createWorker(): Worker {
   });
 
   newWorker.on('error', (error) => {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Worker error:', error);
     // Reject all pending messages
     for (const [id, pending] of pendingMessages.entries()) {
-      pending.reject(new Error(`Worker error: ${error.message}`));
+      pending.reject(new Error(`Worker error: ${errorMessage}`));
       pendingMessages.delete(id);
     }
   });
