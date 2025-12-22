@@ -18,21 +18,9 @@ export async function checkSyosetsuRecentChapters() {
       if (!novel.sourceUrl.includes('syosetu.com')) continue;
 
       try {
-        console.log(`[BackgroundWorker] Checking novel: ${novel.title} (${novel.sourceUrl})`);
-        
-        // Fetch the novel index page
-        const response = await axios.get(novel.sourceUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-          }
-        });
-        const dom = new JSDOM(response.data);
-        const document = dom.window.document;
-
-        // Path should look like /n1234xx/
         const urlObj = new URL(novel.sourceUrl);
+        const host = urlObj.host;
         const pathSegments = urlObj.pathname.split('/').filter(Boolean);
-        // The first segment that starts with 'n' followed by at least 4 chars is usually the novel code
         const novelCode = pathSegments.find(s => /^n[a-z0-9]{4,}$/.test(s));
 
         if (!novelCode) {
@@ -40,23 +28,79 @@ export async function checkSyosetsuRecentChapters() {
           continue;
         }
 
-        // Search for chapter links. Both in new layout (.p-eplist__subtitle) and old legacy layouts.
-        const chapterLinks = Array.from(document.querySelectorAll('a[href]'));
+        console.log(`[BackgroundWorker] Checking novel: ${novel.title} (${novelCode})`);
+
         let maxChapter = 0;
 
-        for (const link of chapterLinks) {
-          const href = link.getAttribute('href');
-          if (!href) continue;
+        // Try to fetch the Novel Info page first as it contains the definitive total chapter count
+        try {
+          // Standard Syosetsu Novel Info URL structure
+          const infoUrl = `https://${host}/novelview/infotop/ncode/${novelCode}/`;
+          const infoResponse = await axios.get(infoUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            }
+          });
+          const infoDom = new JSDOM(infoResponse.data);
+          const infoDoc = infoDom.window.document;
 
-          // Match patterns:
-          // /n1234xx/1/
-          // https://ncode.syosetu.com/n1234xx/1/
-          // Novel codes are mixed case sometimes, but usually lowercase in URLs
-          const match = href.match(new RegExp(`/${novelCode}/([0-9]+)/?$`));
+          // Extract from .p-infotop-type__allep (e.g., "全757エピソード")
+          const episodeText = infoDoc.querySelector('.p-infotop-type__allep')?.textContent || '';
+          const match = episodeText.match(/全\s*(\d+)\s*エピソード/);
           if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxChapter) {
-              maxChapter = num;
+            maxChapter = parseInt(match[1], 10);
+          }
+        } catch (infoErr) {
+          console.warn(`[BackgroundWorker] Failed to fetch info page for ${novel.title}, falling back to index page:`, infoErr instanceof Error ? infoErr.message : infoErr);
+        }
+
+        // Fallback: If info page failed or didn't yield a result, check the main index page
+        if (maxChapter === 0) {
+          const response = await axios.get(novel.sourceUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            }
+          });
+          const dom = new JSDOM(response.data);
+          const document = dom.window.document;
+
+          // Check for pagination "Last" link (最後へ)
+          const lastPageLink = Array.from(document.querySelectorAll('.c-pager__item--last, .nextprev a')).find(el => el.textContent?.includes('最後') || el.getAttribute('href')?.includes('?p='));
+          
+          if (lastPageLink) {
+            const lastHref = lastPageLink.getAttribute('href');
+            if (lastHref) {
+              const lastUrl = new URL(lastHref, novel.sourceUrl).href;
+              const lastResponse = await axios.get(lastUrl, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                }
+              });
+              const lastDom = new JSDOM(lastResponse.data);
+              const chapterLinks = Array.from(lastDom.window.document.querySelectorAll('a[href]'));
+              for (const link of chapterLinks) {
+                const href = link.getAttribute('href');
+                if (href) {
+                  const match = href.match(new RegExp(`/${novelCode}/([0-9]+)/?$`));
+                  if (match) {
+                    const num = parseInt(match[1], 10);
+                    if (num > maxChapter) maxChapter = num;
+                  }
+                }
+              }
+            }
+          }
+
+          // If still zero or as a general scan of the current page
+          const chapterLinks = Array.from(document.querySelectorAll('a[href]'));
+          for (const link of chapterLinks) {
+            const href = link.getAttribute('href');
+            if (href) {
+              const match = href.match(new RegExp(`/${novelCode}/([0-9]+)/?$`));
+              if (match) {
+                const num = parseInt(match[1], 10);
+                if (num > maxChapter) maxChapter = num;
+              }
             }
           }
         }
@@ -65,11 +109,9 @@ export async function checkSyosetsuRecentChapters() {
 
         if (maxChapter > (novel.chapterCount || 0)) {
           console.log(`[BackgroundWorker] NEW chapters found for "${novel.title}"! Setting hasNewChapters flag.`);
-          // Using raw DB update to avoid side-effects of saveNovel (like updating createdAt if it was somehow missing)
           const db = getDb();
           db.prepare('UPDATE novels SET hasNewChapters = 1 WHERE id = ?').run(novel.id);
         } else if (novel.hasNewChapters && maxChapter <= (novel.chapterCount || 0)) {
-          // If it was marked new but now it's not (maybe user manually updated chapters), clear it.
           const db = getDb();
           db.prepare('UPDATE novels SET hasNewChapters = 0 WHERE id = ?').run(novel.id);
         }
