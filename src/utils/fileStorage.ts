@@ -32,7 +32,7 @@ export async function readNovels(): Promise<Novel[]> {
     ...n,
     references: [],
     hasNewChapters: n.hasNewChapters === 1,
-    translationToolCallsEnable: n.translationToolCallsEnable === 1,
+    translationToolCallsEnable: n.translationToolCallsEnable === null ? null : n.translationToolCallsEnable === 1,
   });
 
   const processedNovels = novels.map(mapNovel);
@@ -74,7 +74,7 @@ export async function getNovelById(
     ...novel,
     references: [],
     hasNewChapters: novel.hasNewChapters === 1,
-    translationToolCallsEnable: novel.translationToolCallsEnable === 1,
+    translationToolCallsEnable: novel.translationToolCallsEnable === null ? null : novel.translationToolCallsEnable === 1,
   };
 
   // Get references
