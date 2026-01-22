@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
 import { getDb } from '../utils/db';
-import { saveNovel, readNovels } from '../utils/fileStorage';
+import { readNovels } from '../utils/fileStorage';
 import { serverConfig } from '../../config';
 
 let isRunning = false;

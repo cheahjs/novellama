@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { saveChapter } from '@/utils/chapterStorage';
-import { getNovelById, saveNovel } from '@/utils/fileStorage';
+import { getNovelById } from '@/utils/fileStorage';
 
 export default async function handler(
   req: NextApiRequest,
@@ -22,13 +22,8 @@ export default async function handler(
     switch (req.method) {
       case 'POST':
         const chapter = req.body;
+        // saveChapter handles updating the novel's chapterCount via COUNT(*)
         await saveChapter(novelId, chapter);
-
-        // Update novel's chapter count
-        await saveNovel({
-          ...novel,
-          chapterCount: Math.max(novel.chapterCount || 0, chapter.number),
-        });
 
         return res
           .status(201)
